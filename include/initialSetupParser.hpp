@@ -4,4 +4,4 @@
 #include <vector>
 #include <string>
 
-std::vector<int> parseInitialSetup(std::string path, int n_mach);
+std::vector<int> parseInitialSetup(const std::string path, int n_mach);

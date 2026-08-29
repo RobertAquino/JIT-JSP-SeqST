@@ -2,7 +2,7 @@
 #include "../include/csvUtils.hpp"
 #include <stdexcept>
 
-std::vector<int> parseInitialSetup(std::string path, int machineCount)
+std::vector<int> parseInitialSetup(const std::string path, int machineCount)
 {
     std::vector<int> initialSetup;
     initialSetup.resize(machineCount, -1);

@@ -3,4 +3,4 @@
 #include <vector>
 #include <string>
 
-void startParser(std::string path, std::vector<std::vector<std::vector<int>>> &setup_matrix);
+std::vector<std::vector<std::vector<int>>> parseSetup(const std::string path, int machineCount, int jobCount);

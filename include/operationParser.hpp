@@ -4,4 +4,4 @@
 #include <vector>
 #include <string>
 
-std::vector<Operation> parseOperation(std::string &path);
+std::vector<Operation> parseOperation(const std::string &path);

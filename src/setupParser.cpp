@@ -4,7 +4,7 @@
 #include "../include/csvUtils.hpp"
 #include <stdexcept>
 
-std::vector<std::vector<std::vector<int>>> startParser(std::string path, int machineCount, int jobCount)
+std::vector<std::vector<std::vector<int>>> parseSetup(const std::string path, int machineCount, int jobCount)
 {
     std::vector<std::vector<std::vector<int>>> setupMatrix(machineCount,
                                                            std::vector<std::vector<int>>(jobCount, std::vector<int>(jobCount, 0)));
@@ -21,7 +21,7 @@ std::vector<std::vector<std::vector<int>>> startParser(std::string path, int mac
                           job2 >= 0 && job2 < jobCount;
 
         if (!validIndex)
-            throw std::runtime_error("invalid index in setup file" + path);
+            throw std::runtime_error("invalid index in setup file " + path);
 
         setupMatrix[mach][job1][job2] = tempo;
     }
