@@ -1,5 +1,6 @@
 #pragma once
 
+#include "instance.hpp"
 #include <vector>
 #include <string>
 

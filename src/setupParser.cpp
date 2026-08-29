@@ -1,11 +1,13 @@
-#falta padronizar aqui
 
 #include "../include/setupParser.hpp"
 #include "../include/instance.hpp"
 #include "../include/csvUtils.hpp"
+#include <stdexcept>
 
-void startParser(std::string path, std::vector<std::vector<std::vector<int>>> &setup_matrix)
+std::vector<std::vector<std::vector<int>>> startParser(std::string path, int machineCount, int jobCount)
 {
+    std::vector<std::vector<std::vector<int>>> setupMatrix(machineCount,
+                                                           std::vector<std::vector<int>>(jobCount, std::vector<int>(jobCount, 0)));
 
     for (const auto &fields : readRows(path))
     {
@@ -14,6 +16,14 @@ void startParser(std::string path, std::vector<std::vector<std::vector<int>>> &s
         int job2 = std::stoi(fields[2]);
         int tempo = std::stoi(fields[3]);
 
-        setup_matrix[mach][job1][job2] = tempo;
+        bool validIndex = mach >= 0 && mach < machineCount &&
+                          job1 >= 0 && job1 < jobCount &&
+                          job2 >= 0 && job2 < jobCount;
+
+        if (!validIndex)
+            throw std::runtime_error("invalid index in setup file" + path);
+
+        setupMatrix[mach][job1][job2] = tempo;
     }
+    return setupMatrix;
 }
