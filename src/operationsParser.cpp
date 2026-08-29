@@ -1,4 +1,5 @@
 #include "../include/operationParser.hpp"
+#include "../include/csvUtils.hpp"
 
 std::vector<Operation> parseOperation(std::string &path)
 {
