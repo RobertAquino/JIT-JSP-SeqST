@@ -11,7 +11,7 @@ std::vector<Operation> parseOperation(const std::string &path)
     for (int i = 0; i < rows.size(); i++)
     {
         const auto &fields = rows[i];
-        for (int j = 0; j < fields[i].size(); j = j + 2)
+        for (int j = 0; j < fields.size(); j = j + 2)
         {
 
             Operation operation;

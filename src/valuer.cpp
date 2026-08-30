@@ -223,20 +223,6 @@ std::vector<double> valuer(Instance &instance, double &makespan, std::vector<int
 
     return jobsCost;
 }
-
-void calculateComponents(int &n_mach, int &n_jobs, std::vector<Operation> &operations_list)
-{
-    for (size_t i = 0; i < operations_list.size(); i++)
-    {
-        if (operations_list[i].id_job > n_jobs)
-            n_jobs = operations_list[i].id_job;
-
-        if (operations_list[i].id_machine > n_mach)
-            n_mach = operations_list[i].id_machine;
-    }
-    n_jobs++;
-    n_mach++;
-}
 std::vector<double> calculator(const InstancePaths instancePaths, double &makespan,
                                std::vector<int> &criticalPredecessor, std::vector<ValidationOp> &certificate,
                                std::vector<double> &startTimeJob)
@@ -248,5 +234,5 @@ std::vector<double> calculator(const InstancePaths instancePaths, double &makesp
     finalTimeJob.resize(size, 0);
     finalTimeJob = valuer(instance, makespan, criticalPredecessor, certificate, startTimeJob);
 
-    return finalTimeJob
+    return finalTimeJob;
 }

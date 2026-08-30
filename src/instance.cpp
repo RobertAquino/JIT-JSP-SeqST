@@ -4,18 +4,18 @@
 #include "../include/initialSetupParser.hpp"
 #include "../include/jobParser.hpp"
 
-void Instance::calculateComponents(int &n_mach, int &n_jobs)
+void Instance::calculateComponents(int &machineCount, int &jobsCount)
 {
     for (size_t i = 0; i < operationsList.size(); i++)
     {
-        if (operationsList[i].id_job > n_jobs)
-            n_jobs = operationsList[i].id_job;
+        if (operationsList[i].id_job > jobsCount)
+            jobsCount = operationsList[i].id_job;
 
-        if (operationsList[i].id_machine > n_mach)
-            n_mach = operationsList[i].id_machine;
+        if (operationsList[i].id_machine > machineCount)
+            machineCount = operationsList[i].id_machine;
     }
-    n_jobs++;
-    n_mach++;
+    jobsCount++;
+    machineCount++;
 }
 
 void Instance::configure(int machineCount, int jobCount)
@@ -117,17 +117,17 @@ void Instance::generateSuccessorMach()
     }
 }
 
-void Instance::initializeInstance(InstancePaths instancePaths, int machineCount, int jobCount)
+void Instance::initializeInstance(InstancePaths instancePaths)
 {
     operationsList = parseOperation(instancePaths.operationPath);
     jobsList = parseJob(instancePaths.jobPath);
 
-    int n_mach, n_jobs;
-    calculateComponents(n_mach, n_jobs);
+    int machineCount, jobsCount;
+    calculateComponents(machineCount, jobsCount);
 
-    configure(machineCount, jobCount);
+    configure(machineCount, jobsCount);
 
-    setupMatrix = parseSetup(instancePaths.setupPath, machineCount, jobCount);
+    setupMatrix = parseSetup(instancePaths.setupPath, machineCount, jobsCount);
     initialSetup = parseInitialSetup(instancePaths.initialSetupPath, machineCount);
 
     generateOperToJob(operationsList);
