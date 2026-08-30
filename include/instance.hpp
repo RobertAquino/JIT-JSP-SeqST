@@ -1,5 +1,6 @@
 #pragma once
 
+#include "instancePaths.hpp"
 #include <string>
 #include <vector>
 
@@ -38,7 +39,12 @@ class Instance
 {
 public:
     std::vector<std::vector<std::vector<int>>> setupMatrix;
+    std::vector<Operation> operationsList;
+    std::vector<JobInfo> jobsList;
+    std::vector<int> initialSetup;
     std::vector<int> processingTime;
+
+    // Talvez uma exclusão aqui
     std::vector<int> operToJob;
     std::vector<int> operToMach;
 
@@ -51,9 +57,10 @@ public:
     std::vector<int> predecessorMach;
     std::vector<int> successorMach;
 
-    void initializeInstance(const std::string &operationPath, const std::string &setupPath, int machineCount, int jobCount);
+    void initializeInstance(const InstancePaths instancePaths);
 
 private:
+    void calculateComponents(int &machineCount, int &jobsCount);
     void generateOperToJob(const std::vector<Operation> &operations_list);
     void generateOperToMach(const std::vector<Operation> &operations_list);
     void generateJobOperation(const std::vector<Operation> &operations_list);
@@ -63,5 +70,5 @@ private:
     void generateSuccessorJob();
     void generatePredecessorMach();
     void generateSuccessorMach();
-    void configure(int n_mach, int n_jobs, const std::vector<Operation> &operatons_list);
+    void configure(int n_mach, int n_jobs);
 };

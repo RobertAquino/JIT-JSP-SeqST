@@ -1,7 +1,7 @@
 #include "../include/jobParser.hpp"
 #include "../include/csvUtils.hpp"
 
-std::vector<JobInfo> parseJobs(const std::string &path)
+std::vector<JobInfo> parseJob(const std::string &path)
 {
     std::vector<JobInfo> jobs;
 

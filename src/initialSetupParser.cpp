@@ -14,6 +14,8 @@ std::vector<int> parseInitialSetup(const std::string path, int machineCount)
 
         if (machine < 0 && machine >= machineCount)
             throw std::runtime_error("Invalid machine index in initial setup file: " + std::to_string(machine));
+
+        initialSetup[machine] = job;
     }
 
     return initialSetup;

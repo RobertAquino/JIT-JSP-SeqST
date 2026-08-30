@@ -1,8 +1,24 @@
 #include "../include/instance.hpp"
 #include "../include/operationParser.hpp"
 #include "../include/setupParser.hpp"
+#include "../include/initialSetupParser.hpp"
+#include "../include/jobParser.hpp"
 
-void Instance::configure(int machineCount, int jobCount, const std::vector<Operation> &operationsList)
+void Instance::calculateComponents(int &n_mach, int &n_jobs)
+{
+    for (size_t i = 0; i < operationsList.size(); i++)
+    {
+        if (operationsList[i].id_job > n_jobs)
+            n_jobs = operationsList[i].id_job;
+
+        if (operationsList[i].id_machine > n_mach)
+            n_mach = operationsList[i].id_machine;
+    }
+    n_jobs++;
+    n_mach++;
+}
+
+void Instance::configure(int machineCount, int jobCount)
 {
     int totalOperations = operationsList.size();
 
@@ -101,12 +117,18 @@ void Instance::generateSuccessorMach()
     }
 }
 
-void Instance::initializeInstance(const std::string &operationPath, const std::string &setupPath, int machineCount, int jobCount)
+void Instance::initializeInstance(InstancePaths instancePaths, int machineCount, int jobCount)
 {
-    std::vector<Operation> operationsList = parseOperation(operationPath);
-    configure(machineCount, jobCount, operationsList);
+    operationsList = parseOperation(instancePaths.operationPath);
+    jobsList = parseJob(instancePaths.jobPath);
 
-    setupMatrix = parseSetup(setupPath, machineCount, jobCount);
+    int n_mach, n_jobs;
+    calculateComponents(n_mach, n_jobs);
+
+    configure(machineCount, jobCount);
+
+    setupMatrix = parseSetup(instancePaths.setupPath, machineCount, jobCount);
+    initialSetup = parseInitialSetup(instancePaths.initialSetupPath, machineCount);
 
     generateOperToJob(operationsList);
     generateOperToMach(operationsList);

@@ -4,4 +4,4 @@
 #include <string>
 #include <vector>
 
-std::vector<JobInfo> parseJobs(const std::string &path);
+std::vector<JobInfo> parseJob(const std::string &path);
