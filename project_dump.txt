@@ -1,0 +1,684 @@
+===== ./include/csvUtils.hpp =====
+#pragma once
+
+#include <string>
+#include <vector>
+
+// Reads a CSV file and returns each row already split by comma.
+// Skips the first line if skipHeader is true.
+// Throws std::runtime_error if the file cannot be opened.
+std::vector<std::vector<std::string>> readRows(const std::string &path, bool skipHeader = true);
+
+===== ./include/initialSetupParser.hpp =====
+#pragma once
+
+#include "instance.hpp"
+#include <vector>
+#include <string>
+
+std::vector<int> parseInitialSetup(const std::string path, int n_mach);
+
+===== ./include/instance.hpp =====
+#pragma once
+
+#include "instancePaths.hpp"
+#include <string>
+#include <vector>
+
+struct JobInfo
+{
+    int id_job;
+    int release_date;
+    double due_date;
+    double earliness_penalty;
+    double tardiness_penalty;
+    double flow_time;
+};
+
+struct Operation
+{
+    int id_operation;
+    int id_job;
+    int id_machine;
+    double processing_time;
+    double setup_time;
+};
+
+struct ValidationOp
+{
+    int id_operation;
+    int id_job;
+    int id_machine;
+    double processing_time;
+    double setup_time = 0;
+    double release_date;
+    double final_time;
+    double start_time;
+};
+
+class Instance
+{
+public:
+    std::vector<std::vector<std::vector<int>>> setupMatrix;
+    std::vector<Operation> operationsList;
+    std::vector<JobInfo> jobsList;
+    std::vector<int> initialSetup;
+    std::vector<int> processingTime;
+
+    // Talvez uma exclusão aqui
+    std::vector<int> operToJob;
+    std::vector<int> operToMach;
+
+    std::vector<std::vector<int>> jobOperation;
+    std::vector<std::vector<int>> machOperation;
+
+    std::vector<int> predecessorJob;
+    std::vector<int> successorJob;
+
+    std::vector<int> predecessorMach;
+    std::vector<int> successorMach;
+
+    void initializeInstance(const InstancePaths instancePaths);
+
+private:
+    void calculateComponents(int &machineCount, int &jobsCount);
+    void generateOperToJob(const std::vector<Operation> &operations_list);
+    void generateOperToMach(const std::vector<Operation> &operations_list);
+    void generateJobOperation(const std::vector<Operation> &operations_list);
+    void generateMachOperation(const std::vector<Operation> &operations_list);
+    void generateProcessingTime(const std::vector<Operation> &operations_list);
+    void generatePredecessorJob();
+    void generateSuccessorJob();
+    void generatePredecessorMach();
+    void generateSuccessorMach();
+    void configure(int n_mach, int n_jobs);
+};
+
+
+===== ./include/instancePaths.hpp =====
+#pragma once
+
+#include <string>
+
+struct InstancePaths
+{
+    std::string operationPath;
+    std::string jobPath;
+    std::string setupPath;
+    std::string initialSetupPath;
+};
+
+===== ./include/jobParser.hpp =====
+#pragma once
+
+#include "instance.hpp"
+#include <string>
+#include <vector>
+
+std::vector<JobInfo> parseJob(const std::string &path);
+
+===== ./include/operationParser.hpp =====
+#pragma once
+
+#include "instance.hpp"
+#include <vector>
+#include <string>
+
+std::vector<Operation> parseOperation(const std::string &path);
+
+
+===== ./include/setupParser.hpp =====
+#pragma once
+
+#include <vector>
+#include <string>
+
+std::vector<std::vector<std::vector<int>>> parseSetup(const std::string path, int machineCount, int jobCount);
+
+
+===== ./include/valuer.hpp =====
+#pragma once
+#include "instancePaths.hpp"
+#include "instance.hpp"
+#include <vector>
+
+std::vector<double> valuer(Instance &instance, double &makespan, std::vector<int> &criticalPredecessor,
+                           std::vector<ValidationOp> &certificate, std::vector<double> &startTimeJob);
+
+std::vector<double> calculator(const InstancePaths &instancePaths, double &makespan,
+                               std::vector<int> &criticalPredecessor, std::vector<ValidationOp> &certificate,
+                               std::vector<double> &startTimeJob);
+
+===== ./src/csvUtils.cpp =====
+#include "../include/csvUtils.hpp"
+
+#include <fstream>
+#include <sstream>
+#include <stdexcept>
+
+std::vector<std::string> splitLine(const std::string &line, char delimiter = ',')
+{
+    std::vector<std::string> fields;
+    std::stringstream ss(line);
+    std::string field;
+    while (std::getline(ss, field, delimiter))
+        fields.push_back(field);
+    return fields;
+}
+
+std::vector<std::vector<std::string>> readRows(const std::string &path, bool skipHeader)
+{
+    std::ifstream file(path);
+
+    if (!file.is_open())
+        throw std::runtime_error("Could not open file: " + path);
+
+    std::vector<std::vector<std::string>> rows;
+    std::string line;
+
+    if (skipHeader)
+        std::getline(file, line);
+
+    while (std::getline(file, line))
+    {
+        if (line.empty())
+            continue;
+
+        rows.push_back(splitLine(line));
+    }
+
+    return rows;
+}
+
+===== ./src/initialSetupParser.cpp =====
+#include "../include/initialSetupParser.hpp"
+#include "../include/csvUtils.hpp"
+#include <stdexcept>
+
+std::vector<int> parseInitialSetup(const std::string path, int machineCount)
+{
+    std::vector<int> initialSetup;
+    initialSetup.resize(machineCount, -1);
+
+    for (const auto &fields : readRows(path))
+    {
+        int machine = std::stoi(fields[0]);
+        int job = std::stoi(fields[1]);
+
+        if (machine < 0 || machine >= machineCount)
+            throw std::runtime_error("Invalid machine index in initial setup file: " + std::to_string(machine));
+
+        initialSetup[machine] = job;
+    }
+
+    return initialSetup;
+}
+
+
+===== ./src/instance.cpp =====
+#include "../include/instance.hpp"
+#include "../include/operationParser.hpp"
+#include "../include/setupParser.hpp"
+#include "../include/initialSetupParser.hpp"
+#include "../include/jobParser.hpp"
+
+void Instance::calculateComponents(int &machineCount, int &jobsCount)
+{
+    for (size_t i = 0; i < operationsList.size(); i++)
+    {
+        if (operationsList[i].id_job > jobsCount)
+            jobsCount = operationsList[i].id_job;
+
+        if (operationsList[i].id_machine > machineCount)
+            machineCount = operationsList[i].id_machine;
+    }
+    jobsCount++;
+    machineCount++;
+}
+
+void Instance::configure(int machineCount, int jobCount)
+{
+    int totalOperations = operationsList.size();
+
+    operToJob.resize(totalOperations, 0);
+    operToMach.resize(totalOperations, 0);
+    processingTime.resize(totalOperations, 0);
+    jobOperation.resize(jobCount);
+    machOperation.resize(machineCount);
+    predecessorJob.resize(totalOperations, -1);
+    successorJob.resize(totalOperations, -1);
+    predecessorMach.resize(totalOperations, -1);
+    successorMach.resize(totalOperations, -1);
+}
+
+void Instance::generateOperToJob(const std::vector<Operation> &operationsList)
+{
+    for (size_t i = 0; i < operationsList.size(); i++)
+    {
+        operToJob[operationsList[i].id_operation] = operationsList[i].id_job;
+    }
+}
+
+void Instance::generateOperToMach(const std::vector<Operation> &operationsList)
+{
+    for (size_t i = 0; i < operationsList.size(); i++)
+    {
+        operToMach[operationsList[i].id_operation] = operationsList[i].id_machine;
+    }
+}
+
+void Instance::generateJobOperation(const std::vector<Operation> &operationsList)
+{
+    for (size_t i = 0; i < operationsList.size(); i++)
+    {
+        jobOperation[operationsList[i].id_job].push_back(operationsList[i].id_operation);
+    }
+}
+
+void Instance::generateMachOperation(const std::vector<Operation> &operationsList)
+{
+    for (size_t i = 0; i < operationsList.size(); i++)
+    {
+        machOperation[operationsList[i].id_machine].push_back(operationsList[i].id_operation);
+    }
+}
+
+void Instance::generateProcessingTime(const std::vector<Operation> &operationsList)
+{
+    for (size_t i = 0; i < operationsList.size(); i++)
+    {
+        processingTime[operationsList[i].id_operation] = operationsList[i].processing_time;
+    }
+}
+
+void Instance::generatePredecessorJob()
+{
+    for (const auto &queue : jobOperation)
+    {
+        for (size_t i = 1; i < queue.size(); i++)
+        {
+            predecessorJob[queue[i]] = queue[i - 1];
+        }
+    }
+}
+
+void Instance::generateSuccessorJob()
+{
+    for (const auto &queue : jobOperation)
+    {
+        for (size_t i = 0; i + 1 < queue.size(); i++)
+        {
+            successorJob[queue[i]] = queue[i + 1];
+        }
+    }
+}
+
+void Instance::generatePredecessorMach()
+{
+    for (const auto &queue : machOperation)
+    {
+        for (size_t i = 1; i < queue.size(); i++)
+        {
+            predecessorMach[queue[i]] = queue[i - 1];
+        }
+    }
+}
+
+void Instance::generateSuccessorMach()
+{
+    for (const auto &queue : machOperation)
+    {
+        for (size_t i = 0; i + 1 < queue.size(); i++)
+        {
+            successorMach[queue[i]] = queue[i + 1];
+        }
+    }
+}
+
+void Instance::initializeInstance(InstancePaths instancePaths)
+{
+    operationsList = parseOperation(instancePaths.operationPath);
+    jobsList = parseJob(instancePaths.jobPath);
+
+    int machineCount, jobsCount;
+    calculateComponents(machineCount, jobsCount);
+
+    configure(machineCount, jobsCount);
+
+    setupMatrix = parseSetup(instancePaths.setupPath, machineCount, jobsCount);
+    initialSetup = parseInitialSetup(instancePaths.initialSetupPath, machineCount);
+
+    generateOperToJob(operationsList);
+    generateOperToMach(operationsList);
+    generateJobOperation(operationsList);
+    generateMachOperation(operationsList);
+    generateProcessingTime(operationsList);
+    generatePredecessorJob();
+    generateSuccessorJob();
+    generatePredecessorMach();
+    generateSuccessorMach();
+}
+
+
+===== ./src/jobParser.cpp =====
+#include "../include/jobParser.hpp"
+#include "../include/csvUtils.hpp"
+
+std::vector<JobInfo> parseJob(const std::string &path)
+{
+    std::vector<JobInfo> jobs;
+
+    for (const auto &fields : readRows(path))
+    {
+        JobInfo job;
+        job.id_job = std::stoi(fields[0]);
+        job.release_date = std::stoi(fields[1]);
+        job.due_date = std::stod(fields[2]);
+        job.earliness_penalty = std::stod(fields[3]);
+        job.tardiness_penalty = std::stod(fields[4]);
+        job.flow_time = std::stod(fields[5]);
+        jobs.push_back(job);
+    }
+    return jobs;
+}
+
+===== ./src/operationsParser.cpp =====
+#include "../include/operationParser.hpp"
+#include "../include/csvUtils.hpp"
+
+std::vector<Operation> parseOperation(const std::string &path)
+{
+    std::vector<Operation> operationsList;
+
+    std::vector<std::vector<std::string>> rows = readRows(path);
+
+    int id_op = 0;
+    for (int i = 0; i < rows.size(); i++)
+    {
+        const auto &fields = rows[i];
+        for (int j = 0; j < fields.size(); j = j + 2)
+        {
+
+            Operation operation;
+            operation.id_machine = std::stoi(fields[j]);
+            operation.processing_time = std::stod(fields[j + 1]);
+            operation.id_job = i;
+            operation.id_operation = id_op++;
+            operationsList.push_back(operation);
+        }
+    }
+
+    return operationsList;
+}
+
+===== ./src/setupParser.cpp =====
+
+#include "../include/setupParser.hpp"
+#include "../include/instance.hpp"
+#include "../include/csvUtils.hpp"
+#include <stdexcept>
+
+std::vector<std::vector<std::vector<int>>> parseSetup(const std::string path, int machineCount, int jobCount)
+{
+    std::vector<std::vector<std::vector<int>>> setupMatrix(machineCount,
+                                                           std::vector<std::vector<int>>(jobCount, std::vector<int>(jobCount, 0)));
+
+    for (const auto &fields : readRows(path))
+    {
+        int mach = std::stoi(fields[0]);
+        int job1 = std::stoi(fields[1]);
+        int job2 = std::stoi(fields[2]);
+        int tempo = std::stoi(fields[3]);
+
+        bool validIndex = mach >= 0 && mach < machineCount &&
+                          job1 >= 0 && job1 < jobCount &&
+                          job2 >= 0 && job2 < jobCount;
+
+        if (!validIndex)
+            throw std::runtime_error("invalid index in setup file " + path);
+
+        setupMatrix[mach][job1][job2] = tempo;
+    }
+    return setupMatrix;
+}
+
+===== ./src/valuer.cpp =====
+#include "../include/instance.hpp"
+#include <vector>
+#include <queue>
+
+std::vector<int> computeDegrees(const Instance &instance, int size)
+{
+    std::vector<int> degree(size, 0);
+
+    for (int i = 0; i < size; i++)
+    {
+        if (instance.predecessorJob[i] != -1)
+            degree[i]++;
+
+        if (instance.predecessorMach[i] != -1)
+            degree[i]++;
+    }
+
+    return degree;
+}
+std::queue<int> buildInitialReadyQueue(const std::vector<int> &degree, int size)
+{
+    std::queue<int> readyQueue;
+
+    for (int i = 0; i < size; i++)
+    {
+        if (degree[i] == 0)
+            readyQueue.push(i);
+    }
+
+    return readyQueue;
+}
+
+double computeJobReadyTime(const Instance &instance, std::vector<double> &finalTimeOperation, int current)
+{
+    int predecessorJob = instance.predecessorJob[current];
+
+    if (predecessorJob == -1)
+        return instance.jobsList[instance.operationsList[current].id_job].release_date;
+
+    return finalTimeOperation[predecessorJob];
+}
+
+double computeMachineReadyTime(const Instance &instance, std::vector<double> &finalTimeOperation, int current)
+{
+    int predecessorMachine = instance.predecessorMach[current];
+
+    if (predecessorMachine == -1)
+        return 0.0;
+
+    return finalTimeOperation[predecessorMachine];
+}
+
+double selectBottleneck(double timeJobFinal, double timeMachineFinal, int predecessorJob, int predecessorMach,
+                        int &criticalPredecessorOut)
+{
+    if (timeJobFinal > timeMachineFinal)
+    {
+        criticalPredecessorOut = predecessorJob;
+        return timeJobFinal;
+    }
+    else
+    {
+        criticalPredecessorOut = predecessorMach;
+        return timeMachineFinal;
+    }
+}
+
+double computeSetupTime(const Instance &instance, int current)
+{
+    int machine = instance.operationsList[current].id_machine;
+    int job = instance.operationsList[current].id_job;
+    int predecessorMachine = instance.predecessorMach[current];
+
+    if (predecessorMachine != -1)
+    {
+        int previousJob = instance.operationsList[predecessorMachine].id_job;
+        return instance.setupMatrix[machine][previousJob][job];
+    }
+
+    int initialJob = instance.initialSetup[machine];
+    if (initialJob == -1 || initialJob == job)
+        return 0.0;
+
+    return instance.setupMatrix[machine][initialJob][job];
+}
+
+ValidationOp buildCertificateEntry(const Instance &instance, int current, double startOperation, double setupTime, double duration)
+{
+    ValidationOp entry;
+
+    entry.id_operation = current;
+    entry.id_job = instance.operationsList[current].id_job;
+    entry.id_machine = instance.operationsList[current].id_machine;
+    entry.release_date = startOperation;
+    entry.start_time = startOperation;
+    entry.processing_time = instance.processingTime[current];
+    entry.setup_time = setupTime;
+    entry.final_time = duration;
+
+    return entry;
+}
+
+void releaseSuccessorJob(std::queue<int> &readyQueue, std::vector<int> &degree, const Instance &instance, int current, bool &isLastOperation)
+{
+    int successor = instance.successorJob[current];
+
+    if (successor == -1)
+    {
+        isLastOperation = true;
+        return;
+    }
+
+    degree[successor]--;
+
+    if (degree[successor] == 0)
+        readyQueue.push(successor);
+}
+
+void releaseSuccessorMachine(std::queue<int> &readyQueue, std::vector<int> &degree, const Instance &instance, int current)
+{
+    int successor = instance.successorMach[current];
+
+    if (successor == -1)
+        return;
+
+    degree[successor]--;
+
+    if (degree[successor] == 0)
+        readyQueue.push(successor);
+}
+
+std::vector<double> buildInfeasibleResult(int jobCount, double &makespan)
+{
+    makespan = 999999999.0;
+    return std::vector<double>(jobCount, 999999999.0);
+}
+
+double findMakespan(const std::vector<double> &jobsCost)
+{
+    double makespan = 0.0;
+
+    for (double time : jobsCost)
+    {
+        if (time > makespan)
+            makespan = time;
+    }
+
+    return makespan;
+}
+std::vector<double> valuer(Instance &instance, double &makespan, std::vector<int> &criticalPredecessor,
+                           std::vector<ValidationOp> &certificate, std::vector<double> &startTimeJob)
+{
+    startTimeJob.clear();
+    certificate.clear();
+
+    double startTimeOperation;
+    double finalTimeJob;
+    double finalTimeMachine;
+    int size = instance.operationsList.size();
+    int jobsCount = instance.jobsList.size();
+    int processed = 0;
+    int predecessorJob;
+    int predecessorMach;
+    int criticalPredecessorOut;
+    int currentJob;
+
+    std::vector<double> jobsCost(jobsCount, 0.0);
+    std::vector<double> finalTimeOperation;
+    std::vector<int> topological_list;
+    std::vector<int> degree = computeDegrees(instance, size);
+    std::queue<int> readyQueue = buildInitialReadyQueue(degree, size);
+
+    finalTimeOperation.resize(size, 0);
+    criticalPredecessor.resize(size, -1);
+    startTimeJob.resize(jobsCount, 0);
+
+    while (!readyQueue.empty())
+    {
+        int current = readyQueue.front();
+        readyQueue.pop();
+
+        finalTimeJob = computeJobReadyTime(instance, finalTimeOperation, current);
+        finalTimeMachine = computeMachineReadyTime(instance, finalTimeOperation, current);
+
+        startTimeOperation = selectBottleneck(finalTimeJob, finalTimeMachine,
+                                              instance.predecessorJob[current], instance.predecessorMach[current], criticalPredecessorOut);
+
+        criticalPredecessor[current] = criticalPredecessorOut;
+
+        if (instance.predecessorJob[current] == -1)
+            startTimeJob[instance.operationsList[current].id_job] = startTimeOperation;
+
+        double setupTime = computeSetupTime(instance, current);
+        double duration = startTimeOperation + instance.processingTime[current] + setupTime;
+
+        finalTimeOperation[current] = duration;
+
+        ValidationOp temp = buildCertificateEntry(instance, current, startTimeOperation, setupTime, duration);
+        certificate.push_back(temp);
+
+        topological_list.push_back(current);
+
+        bool isLastOperation = false;
+
+        releaseSuccessorJob(readyQueue, degree, instance, current, isLastOperation);
+        releaseSuccessorMachine(readyQueue, degree, instance, current);
+
+        if (isLastOperation)
+        {
+            currentJob = instance.operationsList[current].id_job;
+            jobsCost[currentJob] = duration;
+        }
+
+        processed++;
+    }
+
+    makespan = 0;
+
+    if (processed != size)
+        return jobsCost = buildInfeasibleResult(jobsCount, makespan);
+
+    makespan = findMakespan(jobsCost);
+
+    return jobsCost;
+}
+std::vector<double> calculator(const InstancePaths instancePaths, double &makespan,
+                               std::vector<int> &criticalPredecessor, std::vector<ValidationOp> &certificate,
+                               std::vector<double> &startTimeJob)
+{
+    Instance instance;
+    instance.initializeInstance(instancePaths);
+    std::vector<double> finalTimeJob;
+    int size = instance.jobsList.size();
+    finalTimeJob.resize(size, 0);
+    finalTimeJob = valuer(instance, makespan, criticalPredecessor, certificate, startTimeJob);
+
+    return finalTimeJob;
+}
+
