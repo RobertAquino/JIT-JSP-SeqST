@@ -22,10 +22,31 @@ public:
     bool detect(double currentCost, bool isNewBest);
 
 private:
+    // represent the cost of windows analised
     std::vector<double> costHistory;
-    unsigned frontPos = 0;
+    // guarda o indice do proximo valor a entrar no vetor
+    unsigned writePointer = 0;
+    // guarda a distancia do valor que repetiu
     unsigned suspectedPeriod = 0;
+    // guarda a quantidade de vezes que a hipótese se confirmou
     unsigned repeatsSoFar = 0;
+    // guarda o tamanho da janela analisada
     unsigned window;
+    // Quantidade de confirmações para decretar o ciclo
     unsigned requiredRepeats;
 };
+/*private:
+  // FIFO queue of last maxD selected objetives implemented as circular list
+  vector<double> objQ;
+  // position of last inserted element on objQ
+  unsigned qFrontPos;
+  // (qFrontPos+distFrontCycleLast)%maxD is supposed next objective value in
+  // possible current exploring cycle
+  unsigned distFrontCycleLast;
+  // current size of sequence of repeated objective values
+  unsigned cycleSize;
+  // max size of sequence of repeated objective values
+  unsigned maxD;
+  // max times a sequence of repeated objective values can repeat
+  unsigned maxC;
+};*/

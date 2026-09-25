@@ -1,0 +1,1380 @@
+-e 
+
+===== ARQUIVO: ./src/instance.cpp =====
+
+#include "../include/instance.hpp"
+#include "../include/operationParser.hpp"
+#include "../include/setupParser.hpp"
+#include "../include/initialSetupParser.hpp"
+#include "../include/jobParser.hpp"
+
+void Instance::calculateComponents(int &machineCount, int &jobsCount)
+{
+    for (size_t i = 0; i < operationsList.size(); i++)
+    {
+        if (operationsList[i].id_job > jobsCount)
+            jobsCount = operationsList[i].id_job;
+
+        if (operationsList[i].id_machine > machineCount)
+            machineCount = operationsList[i].id_machine;
+    }
+    jobsCount++;
+    machineCount++;
+}
+
+void Instance::configure(int machineCount, int jobCount)
+{
+    int totalOperations = operationsList.size();
+
+    operToJob.resize(totalOperations, 0);
+    operToMach.resize(totalOperations, 0);
+    processingTime.resize(totalOperations, 0);
+    jobOperation.resize(jobCount);
+    machOperation.resize(machineCount);
+    predecessorJob.resize(totalOperations, -1);
+    successorJob.resize(totalOperations, -1);
+    predecessorMach.resize(totalOperations, -1);
+    successorMach.resize(totalOperations, -1);
+}
+
+void Instance::generateOperToJob(const std::vector<Operation> &operationsList)
+{
+    for (size_t i = 0; i < operationsList.size(); i++)
+    {
+        operToJob[operationsList[i].id_operation] = operationsList[i].id_job;
+    }
+}
+
+void Instance::generateOperToMach(const std::vector<Operation> &operationsList)
+{
+    for (size_t i = 0; i < operationsList.size(); i++)
+    {
+        operToMach[operationsList[i].id_operation] = operationsList[i].id_machine;
+    }
+}
+
+void Instance::generateJobOperation(const std::vector<Operation> &operationsList)
+{
+    for (size_t i = 0; i < operationsList.size(); i++)
+    {
+        jobOperation[operationsList[i].id_job].push_back(operationsList[i].id_operation);
+    }
+}
+
+void Instance::generateMachOperation(const std::vector<Operation> &operationsList)
+{
+    for (size_t i = 0; i < operationsList.size(); i++)
+    {
+        machOperation[operationsList[i].id_machine].push_back(operationsList[i].id_operation);
+    }
+}
+
+void Instance::generateProcessingTime(const std::vector<Operation> &operationsList)
+{
+    for (size_t i = 0; i < operationsList.size(); i++)
+    {
+        processingTime[operationsList[i].id_operation] = operationsList[i].processing_time;
+    }
+}
+
+void Instance::generatePredecessorJob()
+{
+    for (const auto &queue : jobOperation)
+    {
+        for (size_t i = 1; i < queue.size(); i++)
+        {
+            predecessorJob[queue[i]] = queue[i - 1];
+        }
+    }
+}
+
+void Instance::generateSuccessorJob()
+{
+    for (const auto &queue : jobOperation)
+    {
+        for (size_t i = 0; i + 1 < queue.size(); i++)
+        {
+            successorJob[queue[i]] = queue[i + 1];
+        }
+    }
+}
+
+void Instance::generatePredecessorMach()
+{
+    for (const auto &queue : machOperation)
+    {
+        for (size_t i = 1; i < queue.size(); i++)
+        {
+            predecessorMach[queue[i]] = queue[i - 1];
+        }
+    }
+}
+
+void Instance::generateSuccessorMach()
+{
+    for (const auto &queue : machOperation)
+    {
+        for (size_t i = 0; i + 1 < queue.size(); i++)
+        {
+            successorMach[queue[i]] = queue[i + 1];
+        }
+    }
+}
+
+void Instance::initializeInstance(InstancePaths instancePaths)
+{
+    operationsList = parseOperation(instancePaths.operationPath);
+    jobsList = parseJob(instancePaths.jobPath);
+
+    int machineCount, jobsCount;
+    calculateComponents(machineCount, jobsCount);
+
+    configure(machineCount, jobsCount);
+
+    setupMatrix = parseSetup(instancePaths.setupPath, machineCount, jobsCount);
+    initialSetup = parseInitialSetup(instancePaths.initialSetupPath, machineCount);
+
+    generateOperToJob(operationsList);
+    generateOperToMach(operationsList);
+    generateJobOperation(operationsList);
+    generateMachOperation(operationsList);
+    generateProcessingTime(operationsList);
+    generatePredecessorJob();
+    generateSuccessorJob();
+    generatePredecessorMach();
+    generateSuccessorMach();
+}
+-e 
+
+===== ARQUIVO: ./src/tabuList.cpp =====
+
+#include "../include/tabuList.hpp"
+
+TabuList::TabuList(int totalOperations)
+{
+    tabuList.resize(totalOperations, std::vector<int>(totalOperations, 0));
+}
+
+void TabuList::insertMovement(int op1, int op2, int currentIteration, int tenure)
+{
+    tabuList[op1][op2] = currentIteration + tenure;
+}
+
+bool TabuList::isTabu(int op1, int op2, int currentIteration) const
+{
+    if (tabuList[op1][op2] < currentIteration)
+        return false;
+
+    return true;
+}
+
+int TabuList::age(int op1, int op2, int currentIteration, int tenure) const
+{
+    return tenure - (tabuList[op1][op2] - currentIteration);
+}
+
+int TabuList::timeToLeave(int op1, int op2, int currentIteration) const
+{
+    return tabuList[op1][op2] - currentIteration;
+}
+-e 
+
+===== ARQUIVO: ./src/jobParser.cpp =====
+
+#include "../include/jobParser.hpp"
+#include "../include/csvUtils.hpp"
+
+std::vector<JobInfo> parseJob(const std::string &path)
+{
+    std::vector<JobInfo> jobs;
+
+    for (const auto &fields : readRows(path))
+    {
+        JobInfo job;
+        job.id_job = std::stoi(fields[0]);
+        job.release_date = std::stoi(fields[1]);
+        job.due_date = std::stod(fields[2]);
+        job.earliness_penalty = std::stod(fields[3]);
+        job.tardiness_penalty = std::stod(fields[4]);
+        job.flow_time = std::stod(fields[5]);
+        jobs.push_back(job);
+    }
+    return jobs;
+}-e 
+
+===== ARQUIVO: ./src/operationsParser.cpp =====
+
+#include "../include/operationParser.hpp"
+#include "../include/csvUtils.hpp"
+
+std::vector<Operation> parseOperation(const std::string &path)
+{
+    std::vector<Operation> operationsList;
+
+    std::vector<std::vector<std::string>> rows = readRows(path);
+
+    int id_op = 0;
+    for (int i = 0; i < rows.size(); i++)
+    {
+        const auto &fields = rows[i];
+        for (int j = 0; j < fields.size(); j = j + 2)
+        {
+
+            Operation operation;
+            operation.id_machine = std::stoi(fields[j]);
+            operation.processing_time = std::stod(fields[j + 1]);
+            operation.id_job = i;
+            operation.id_operation = id_op++;
+            operationsList.push_back(operation);
+        }
+    }
+
+    return operationsList;
+}-e 
+
+===== ARQUIVO: ./src/initialSetupParser.cpp =====
+
+#include "../include/initialSetupParser.hpp"
+#include "../include/csvUtils.hpp"
+#include <stdexcept>
+
+std::vector<int> parseInitialSetup(const std::string path, int machineCount)
+{
+    std::vector<int> initialSetup;
+    initialSetup.resize(machineCount, -1);
+
+    for (const auto &fields : readRows(path))
+    {
+        int machine = std::stoi(fields[0]);
+        int job = std::stoi(fields[1]);
+
+        if (machine < 0 || machine >= machineCount)
+            throw std::runtime_error("Invalid machine index in initial setup file: " + std::to_string(machine));
+
+        initialSetup[machine] = job;
+    }
+
+    return initialSetup;
+}
+-e 
+
+===== ARQUIVO: ./src/tabuSearch.cpp =====
+
+#include "../include/tabuSearch.hpp"
+#include "../include/instance.hpp"
+#include "../include/valuer.hpp"
+#include "../include/Movement.hpp"
+
+void createSPT(Instance &instance, const std::vector<Operation> &operations_list, const std::vector<JobInfo> &jobs_list,
+               Solution &solution, int n_mach)
+{
+    solution.solution_matrix.clear();
+    solution.solution_matrix.resize(n_mach);
+    int size_op = operations_list.size();
+    int size_job = jobs_list.size();
+    int processed = 0;
+    std::vector<int> job_processing;
+    job_processing.resize(size_job, 0);
+
+    while (processed < size_op)
+    {
+        int best_op = -1;
+        int best_job = -1;
+        double lower_time = 999999999.0;
+
+        for (int i = 0; i < size_job; i++)
+        {
+            if (job_processing[i] < (int)instance.jobOperation[i].size())
+            {
+                int op_index = instance.jobOperation[i][job_processing[i]];
+                double op_time = operations_list[op_index].processing_time;
+
+                if (op_time < lower_time)
+                {
+                    best_job = i;
+                    best_op = op_index;
+                    lower_time = op_time;
+                }
+            }
+        }
+
+        if (best_op != -1)
+        {
+            solution.solution_matrix[operations_list[best_op].id_machine].push_back(best_op);
+            job_processing[best_job]++;
+            processed++;
+        }
+        else
+        {
+            break; // Se não achar ninguém, sai do loop pra não travar o PC
+        }
+    }
+}
+
+void changePredecessorMach(const Solution &solution, Instance &instance)
+{
+    for (const auto &fila : solution.solution_matrix)
+    {
+        if (fila.empty())
+            continue;
+
+        instance.predecessorMach[fila[0]] = -1;
+
+        for (size_t i = 1; i < fila.size(); i++)
+        {
+            instance.predecessorMach[fila[i]] = fila[i - 1];
+        }
+    }
+}
+
+void changeSucessorMach(const Solution &solution, Instance &instance)
+{
+    for (const auto &fila : solution.solution_matrix)
+    {
+        if (fila.empty())
+            continue;
+
+        instance.sucessorMach[fila.back()] = -1;
+
+        for (size_t i = 0; i < fila.size() - 1; i++)
+        {
+            instance.sucessorMach[fila[i]] = fila[i + 1];
+        }
+    }
+}
+double penaltySum(const std::vector<double> &final_time, const std::vector<JobInfo> &jobs_list, std::vector<double> &start_time_job)
+{
+    double sum = 0;
+    for (size_t i = 0; i < final_time.size(); i++)
+    {
+        double due_date = jobs_list[i].due_date;
+        double C_last = final_time[i];
+        double S_first = start_time_job[i];
+        double flow_time = C_last - S_first;
+
+        if (C_last < due_date)
+            sum += (due_date - C_last) * jobs_list[i].earliness_penalty;
+        else if (C_last > due_date)
+            sum += (C_last - due_date) * jobs_list[i].tardiness_penalty;
+
+        sum += flow_time * jobs_list[i].flow_time;
+    }
+    return sum;
+}
+double TabuSearch(Instance &instance, double &makespan, std::string setupPath, std::string operationPath, std::string jobPath,
+                  std::vector<int> &criticalPredecessor, int optionNeighborhood, int optionImprovementStrategy,
+                  std::vector<double> &final_time_job, const std::vector<Operation> &operations_list, std::vector<JobInfo> &jobs_list,
+                  int n_mach, int &total_iteration, std::vector<ValidationOp> &certificate, std::vector<double> &start_time_job,
+                  std::vector<int> &initialSetup)
+{
+    std::vector<Movement> neighborhood;
+    double temp_makespan = makespan;
+    double best_cost;
+    std::vector<double> best_global_cost = final_time_job;
+    Solution initial_solution;
+
+    total_iteration = 0;
+    int max_iteration = 300;
+    int iteration = 0;
+    int tabu_tenure = (optionNeighborhood == 2) ? 5 : 50;
+
+    int total_ops = operations_list.size();
+    std::vector<std::vector<int>> tabu_list(total_ops, std::vector<int>(total_ops, 0));
+    createSPT(instance, operations_list, jobs_list, initial_solution, n_mach);
+
+    Solution current = initial_solution;
+    Solution best_global = initial_solution;
+
+    changePredecessorMach(initial_solution, instance);
+    changeSucessorMach(initial_solution, instance);
+
+    std::vector<double> current_final_time = valuer(operations_list, instance, temp_makespan, criticalPredecessor, jobs_list,
+                                                    certificate, start_time_job, initialSetup);
+    best_cost = penaltySum(current_final_time, jobs_list, start_time_job);
+
+    std::vector<ValidationOp> best_certificate = certificate;
+
+    while (iteration < max_iteration)
+    {
+        bool find_movement = false;
+        total_iteration++;
+
+        if (optionNeighborhood == 1)
+            neighborhood = adjacentNeighborhood(current);
+
+        if (optionNeighborhood == 2)
+        {
+            std::vector<int> criticalPath = generateCriticalPath(current_final_time, criticalPredecessor, instance, makespan);
+            neighborhood = criticalPathNeighborhood(current, criticalPath, instance);
+        }
+
+        if (neighborhood.empty())
+            break;
+
+        double best_current_makespan = 0;
+        double best_cost_current = 99999999999.0;
+        Solution best_current = initial_solution;
+        int chosen_op1 = -1;
+        int chosen_op2 = -1;
+        std::vector<double> best_current_final_time;
+        std::vector<ValidationOp> best_current_certificate;
+
+        for (size_t i = 0; i < neighborhood.size(); i++)
+        {
+            Solution next_solution = neighborhood[i].solution;
+            double next_makespan;
+            int op1 = neighborhood[i].op1;
+            int op2 = neighborhood[i].op2;
+
+            changePredecessorMach(next_solution, instance);
+            changeSucessorMach(next_solution, instance);
+            std::vector<ValidationOp> temp_certificate;
+            std::vector<double> next_final_time = valuer(operations_list, instance, next_makespan,
+                                                         criticalPredecessor, jobs_list, temp_certificate, start_time_job, initialSetup);
+
+            double next_cost = penaltySum(next_final_time, jobs_list, start_time_job);
+
+            if (next_makespan == 999999999.0)
+                continue;
+
+            bool isTabu = (tabu_list[op1][op2] >= total_iteration);
+            if (isTabu && next_cost < best_cost)
+                isTabu = false;
+
+            if (!isTabu && next_cost < best_cost_current)
+            {
+                best_cost_current = next_cost;
+                best_current_makespan = next_makespan;
+                best_current = next_solution;
+                chosen_op1 = op1;
+                chosen_op2 = op2;
+                find_movement = true;
+                best_current_final_time = next_final_time;
+                best_current_certificate = temp_certificate;
+            }
+        }
+
+        if (!find_movement)
+            break;
+
+        tabu_list[chosen_op1][chosen_op2] = total_iteration + tabu_tenure;
+        tabu_list[chosen_op2][chosen_op1] = total_iteration + tabu_tenure;
+
+        current = best_current;
+        changePredecessorMach(current, instance);
+        changeSucessorMach(current, instance);
+        current_final_time = best_current_final_time;
+
+        if (best_cost_current < best_cost)
+        {
+            temp_makespan = best_current_makespan;
+            best_global = best_current;
+            best_cost = best_cost_current;
+            iteration = 0;
+            best_certificate = best_current_certificate;
+        }
+        else
+        {
+            iteration++;
+        }
+    }
+
+    makespan = temp_makespan;
+    certificate = best_certificate;
+
+    return best_cost;
+}-e 
+
+===== ARQUIVO: ./src/valuer.cpp =====
+
+#include "../include/instance.hpp"
+#include <vector>
+#include <queue>
+
+std::vector<int> computeDegrees(const Instance &instance, int size)
+{
+    std::vector<int> degree(size, 0);
+
+    for (int i = 0; i < size; i++)
+    {
+        if (instance.predecessorJob[i] != -1)
+            degree[i]++;
+
+        if (instance.predecessorMach[i] != -1)
+            degree[i]++;
+    }
+
+    return degree;
+}
+std::queue<int> buildInitialReadyQueue(const std::vector<int> &degree, int size)
+{
+    std::queue<int> readyQueue;
+
+    for (int i = 0; i < size; i++)
+    {
+        if (degree[i] == 0)
+            readyQueue.push(i);
+    }
+
+    return readyQueue;
+}
+
+double computeJobReadyTime(const Instance &instance, std::vector<double> &finalTimeOperation, int current)
+{
+    int predecessorJob = instance.predecessorJob[current];
+
+    if (predecessorJob == -1)
+        return instance.jobsList[instance.operationsList[current].id_job].release_date;
+
+    return finalTimeOperation[predecessorJob];
+}
+
+double computeMachineReadyTime(const Instance &instance, std::vector<double> &finalTimeOperation, int current)
+{
+    int predecessorMachine = instance.predecessorMach[current];
+
+    if (predecessorMachine == -1)
+        return 0.0;
+
+    return finalTimeOperation[predecessorMachine];
+}
+
+double selectBottleneck(double timeJobFinal, double timeMachineFinal, int predecessorJob, int predecessorMach,
+                        int &criticalPredecessorOut)
+{
+    if (timeJobFinal > timeMachineFinal)
+    {
+        criticalPredecessorOut = predecessorJob;
+        return timeJobFinal;
+    }
+    else
+    {
+        criticalPredecessorOut = predecessorMach;
+        return timeMachineFinal;
+    }
+}
+
+double computeSetupTime(const Instance &instance, int current)
+{
+    int machine = instance.operationsList[current].id_machine;
+    int job = instance.operationsList[current].id_job;
+    int predecessorMachine = instance.predecessorMach[current];
+
+    if (predecessorMachine != -1)
+    {
+        int previousJob = instance.operationsList[predecessorMachine].id_job;
+        return instance.setupMatrix[machine][previousJob][job];
+    }
+
+    int initialJob = instance.initialSetup[machine];
+    if (initialJob == -1 || initialJob == job)
+        return 0.0;
+
+    return instance.setupMatrix[machine][initialJob][job];
+}
+
+ValidationOp buildCertificateEntry(const Instance &instance, int current, double startOperation, double setupTime, double duration)
+{
+    ValidationOp entry;
+
+    entry.id_operation = current;
+    entry.id_job = instance.operationsList[current].id_job;
+    entry.id_machine = instance.operationsList[current].id_machine;
+    entry.release_date = startOperation;
+    entry.start_time = startOperation;
+    entry.processing_time = instance.processingTime[current];
+    entry.setup_time = setupTime;
+    entry.final_time = duration;
+
+    return entry;
+}
+
+void releaseSuccessorJob(std::queue<int> &readyQueue, std::vector<int> &degree, const Instance &instance, int current, bool &isLastOperation)
+{
+    int successor = instance.successorJob[current];
+
+    if (successor == -1)
+    {
+        isLastOperation = true;
+        return;
+    }
+
+    degree[successor]--;
+
+    if (degree[successor] == 0)
+        readyQueue.push(successor);
+}
+
+void releaseSuccessorMachine(std::queue<int> &readyQueue, std::vector<int> &degree, const Instance &instance, int current)
+{
+    int successor = instance.successorMach[current];
+
+    if (successor == -1)
+        return;
+
+    degree[successor]--;
+
+    if (degree[successor] == 0)
+        readyQueue.push(successor);
+}
+
+std::vector<double> buildInfeasibleResult(int jobCount, double &makespan)
+{
+    makespan = 999999999.0;
+    return std::vector<double>(jobCount, 999999999.0);
+}
+
+double findMakespan(const std::vector<double> &jobsCost)
+{
+    double makespan = 0.0;
+
+    for (double time : jobsCost)
+    {
+        if (time > makespan)
+            makespan = time;
+    }
+
+    return makespan;
+}
+std::vector<double> valuer(Instance &instance, double &makespan, std::vector<int> &criticalPredecessor,
+                           std::vector<ValidationOp> &certificate, std::vector<double> &startTimeJob)
+{
+    startTimeJob.clear();
+    certificate.clear();
+
+    double startTimeOperation;
+    double finalTimeJob;
+    double finalTimeMachine;
+    int size = instance.operationsList.size();
+    int jobsCount = instance.jobsList.size();
+    int processed = 0;
+    int predecessorJob;
+    int predecessorMach;
+    int criticalPredecessorOut;
+    int currentJob;
+
+    std::vector<double> jobsCost(jobsCount, 0.0);
+    std::vector<double> finalTimeOperation;
+    std::vector<int> topological_list;
+    std::vector<int> degree = computeDegrees(instance, size);
+    std::queue<int> readyQueue = buildInitialReadyQueue(degree, size);
+
+    finalTimeOperation.resize(size, 0);
+    criticalPredecessor.resize(size, -1);
+    startTimeJob.resize(jobsCount, 0);
+
+    while (!readyQueue.empty())
+    {
+        int current = readyQueue.front();
+        readyQueue.pop();
+
+        finalTimeJob = computeJobReadyTime(instance, finalTimeOperation, current);
+        finalTimeMachine = computeMachineReadyTime(instance, finalTimeOperation, current);
+
+        startTimeOperation = selectBottleneck(finalTimeJob, finalTimeMachine,
+                                              instance.predecessorJob[current], instance.predecessorMach[current], criticalPredecessorOut);
+
+        criticalPredecessor[current] = criticalPredecessorOut;
+
+        if (instance.predecessorJob[current] == -1)
+            startTimeJob[instance.operationsList[current].id_job] = startTimeOperation;
+
+        double setupTime = computeSetupTime(instance, current);
+        double duration = startTimeOperation + instance.processingTime[current] + setupTime;
+
+        finalTimeOperation[current] = duration;
+
+        ValidationOp temp = buildCertificateEntry(instance, current, startTimeOperation, setupTime, duration);
+        certificate.push_back(temp);
+
+        topological_list.push_back(current);
+
+        bool isLastOperation = false;
+
+        releaseSuccessorJob(readyQueue, degree, instance, current, isLastOperation);
+        releaseSuccessorMachine(readyQueue, degree, instance, current);
+
+        if (isLastOperation)
+        {
+            currentJob = instance.operationsList[current].id_job;
+            jobsCost[currentJob] = duration;
+        }
+
+        processed++;
+    }
+
+    makespan = 0;
+
+    if (processed != size)
+        return jobsCost = buildInfeasibleResult(jobsCount, makespan);
+
+    makespan = findMakespan(jobsCost);
+
+    return jobsCost;
+}
+std::vector<double> calculator(const InstancePaths instancePaths, double &makespan,
+                               std::vector<int> &criticalPredecessor, std::vector<ValidationOp> &certificate,
+                               std::vector<double> &startTimeJob)
+{
+    Instance instance;
+    instance.initializeInstance(instancePaths);
+    std::vector<double> finalTimeJob;
+    int size = instance.jobsList.size();
+    finalTimeJob.resize(size, 0);
+    finalTimeJob = valuer(instance, makespan, criticalPredecessor, certificate, startTimeJob);
+
+    return finalTimeJob;
+}-e 
+
+===== ARQUIVO: ./src/neighborhoodGenerators.cpp =====
+
+#include "../include/neighborhoodGenerators.hpp"
+
+std::vector<Movement> adjacentNeighborhood(Solution &current)
+{
+    std::vector<Movement> neighbors;
+    for (size_t mach = 0; mach < current.solution_matrix.size(); mach++)
+    {
+        if (current.solution_matrix[mach].size() < 2)
+            continue;
+
+        for (size_t i = 0; i < current.solution_matrix[mach].size() - 1; i++)
+        {
+            Movement mov;
+            mov.solution = current;
+            mov.op1 = mov.solution.solution_matrix[mach][i];
+            mov.op2 = mov.solution.solution_matrix[mach][i + 1];
+
+            std::swap(mov.solution.solution_matrix[mach][i], mov.solution.solution_matrix[mach][i + 1]);
+
+            neighbors.push_back(mov);
+        }
+    }
+    return neighbors;
+}
+
+std::vector<int> generateCriticalPath(std::vector<double> &final_time_job, std::vector<int> &criticalPredecessor, Instance &instance,
+                                      double &makespan)
+{
+    std::vector<int> criticalPath;
+    int index_last_job = -1;
+
+    for (size_t i = 0; i < final_time_job.size(); i++)
+    {
+        if (std::abs(final_time_job[i] - makespan) < 1e-9)
+        {
+            index_last_job = i;
+        }
+    }
+
+    if (index_last_job == -1)
+    {
+        for (size_t i = 0; i < final_time_job.size(); i++)
+        {
+            if (index_last_job == -1 || final_time_job[i] > final_time_job[index_last_job])
+                index_last_job = i;
+        }
+    }
+
+    int current = instance.jobOperation[index_last_job].back();
+
+    while (current != -1)
+    {
+        criticalPath.push_back(current);
+        current = criticalPredecessor[current];
+    }
+
+    return criticalPath;
+}
+
+std::vector<Movement> criticalPathNeighborhood(Solution &current, std::vector<int> &criticalPath, Instance &instance)
+{
+    std::vector<Movement> neighbors;
+
+    for (size_t j = 0; j < criticalPath.size() - 1; j++)
+    {
+        int op1 = criticalPath[j];
+        int op2 = criticalPath[j + 1];
+
+        int mach1 = instance.operToMach[op1];
+        int mach2 = instance.operToMach[op2];
+
+        if (mach1 == mach2)
+        {
+            Movement mov;
+            mov.op1 = op1;
+            mov.op2 = op2;
+            mov.solution = current;
+
+            int index_op1 = -1;
+            int index_op2 = -1;
+
+            for (size_t i = 0; i < mov.solution.solution_matrix[mach1].size(); i++)
+            {
+                if (mov.solution.solution_matrix[mach1][i] == op1)
+                    index_op1 = i;
+
+                if (mov.solution.solution_matrix[mach1][i] == op2)
+                    index_op2 = i;
+            }
+
+            if (index_op1 != -1 && index_op2 != -1 && std::abs(index_op1 - index_op2) == 1)
+            {
+                std::swap(mov.solution.solution_matrix[mach1][index_op1], mov.solution.solution_matrix[mach1][index_op2]);
+                neighbors.push_back(mov);
+            }
+        }
+    }
+    return neighbors;
+}
+-e 
+
+===== ARQUIVO: ./src/setupParser.cpp =====
+
+
+#include "../include/setupParser.hpp"
+#include "../include/instance.hpp"
+#include "../include/csvUtils.hpp"
+#include <stdexcept>
+
+std::vector<std::vector<std::vector<int>>> parseSetup(const std::string path, int machineCount, int jobCount)
+{
+    std::vector<std::vector<std::vector<int>>> setupMatrix(machineCount,
+                                                           std::vector<std::vector<int>>(jobCount, std::vector<int>(jobCount, 0)));
+
+    for (const auto &fields : readRows(path))
+    {
+        int mach = std::stoi(fields[0]);
+        int job1 = std::stoi(fields[1]);
+        int job2 = std::stoi(fields[2]);
+        int tempo = std::stoi(fields[3]);
+
+        bool validIndex = mach >= 0 && mach < machineCount &&
+                          job1 >= 0 && job1 < jobCount &&
+                          job2 >= 0 && job2 < jobCount;
+
+        if (!validIndex)
+            throw std::runtime_error("invalid index in setup file " + path);
+
+        setupMatrix[mach][job1][job2] = tempo;
+    }
+    return setupMatrix;
+}-e 
+
+===== ARQUIVO: ./src/cycleDetector.cpp =====
+
+/*class CycleDetector
+{
+public:
+    CycleDetector(unsigned cycleWindow, unsigned cycleRepeats);
+    bool detect(double currentCost, bool isNewBest);
+
+private:
+    std::vector<double> costHistory;
+    unsigned frontPos = 0;
+    unsigned suspectedPeriod = 0;
+    unsigned repeatsSoFar = 0;
+    unsigned window;
+    unsigned requiredRepeats;
+};
+*/
+
+#include "../include/cycleDetector.hpp"
+
+CycleDetector::CycleDetector(unsigned cycleWindow, unsigned cycleRepeats)
+{
+    costHistory.resize(cycleWindow, -1);
+    window = cycleWindow;
+    requiredRepeats = cycleRepeats;
+}
+//(ex: 10, 12, 15, 10, 12, 15, 10, 12, 15, ...) d
+bool CycleDetector::detect(double currentCost, bool isNewBest)
+{
+    if (isNewBest)
+    {
+        writePointer = 0;
+        suspectedPeriod = 0;
+        repeatsSoFar = 0;
+        for (size_t i = 0; i < costHistory.size(); i++)
+            costHistory[i] = -1;
+    }
+
+    ++writePointer;
+    writePointer = writePointer % window;
+    costHistory[writePointer] = currentCost;
+}
+-e 
+
+===== ARQUIVO: ./src/csvUtils.cpp =====
+
+#include "../include/csvUtils.hpp"
+
+#include <fstream>
+#include <sstream>
+#include <stdexcept>
+
+std::vector<std::string> splitLine(const std::string &line, char delimiter = ',')
+{
+    std::vector<std::string> fields;
+    std::stringstream ss(line);
+    std::string field;
+    while (std::getline(ss, field, delimiter))
+        fields.push_back(field);
+    return fields;
+}
+
+std::vector<std::vector<std::string>> readRows(const std::string &path, bool skipHeader)
+{
+    std::ifstream file(path);
+
+    if (!file.is_open())
+        throw std::runtime_error("Could not open file: " + path);
+
+    std::vector<std::vector<std::string>> rows;
+    std::string line;
+
+    if (skipHeader)
+        std::getline(file, line);
+
+    while (std::getline(file, line))
+    {
+        if (line.empty())
+            continue;
+
+        rows.push_back(splitLine(line));
+    }
+
+    return rows;
+}-e 
+
+===== ARQUIVO: ./include/tabuSearch.hpp =====
+
+#pragma once
+
+#include "instance.hpp"
+#include <vector>
+
+void createSPT(Instance &instance, const std::vector<Operation> &operations_list, const std::vector<JobInfo> &jobs_list,
+               Solution &solution, int n_mach);
+
+void changePredecessorMach(const Solution &solution, Instance &instance);
+void changeSucessorMach(const Solution &solution, Instance &instance);
+std::vector<Movement> adjacentNeighborhood(Solution &current);
+std::vector<int> generateCriticalPath(std::vector<double> &final_time_job, std::vector<int> &criticalPredecessor, Instance &instance,
+                                      double &makespan);
+std::vector<Movement> criticalPathNeighborhood(Solution &current, std::vector<int> &criticalPath, Instance &instance);
+double penaltySum(const std::vector<double> &final_time, const std::vector<JobInfo> &jobs_list, std::vector<double> &start_time_job);
+
+double TabuSearch(Instance &instance, double &makespan, std::string setupPath, std::string operationPath, std::string jobPath,
+                  std::vector<int> &criticalPredecessor, int optionNeighborhood, int optionImprovementStrategy,
+                  std::vector<double> &final_time_job, const std::vector<Operation> &operations_list, std::vector<JobInfo> &jobs_list,
+                  int n_mach, int &total_iteration, std::vector<ValidationOp> &certificate, std::vector<double> &start_time_job,
+                  std::vector<int> &initialSetup);
+-e 
+
+===== ARQUIVO: ./include/instance.hpp =====
+
+#pragma once
+
+#include "instancePaths.hpp"
+#include <string>
+#include <vector>
+
+struct JobInfo
+{
+    int id_job;
+    int release_date;
+    double due_date;
+    double earliness_penalty;
+    double tardiness_penalty;
+    double flow_time;
+};
+
+struct Operation
+{
+    int id_operation;
+    int id_job;
+    int id_machine;
+    double processing_time;
+    double setup_time;
+};
+
+struct ValidationOp
+{
+    int id_operation;
+    int id_job;
+    int id_machine;
+    double processing_time;
+    double setup_time = 0;
+    double release_date;
+    double final_time;
+    double start_time;
+};
+
+class Instance
+{
+public:
+    std::vector<std::vector<std::vector<int>>> setupMatrix;
+    std::vector<Operation> operationsList;
+    std::vector<JobInfo> jobsList;
+    std::vector<int> initialSetup;
+    std::vector<int> processingTime;
+
+    // Talvez uma exclusão aqui
+    std::vector<int> operToJob;
+    std::vector<int> operToMach;
+
+    std::vector<std::vector<int>> jobOperation;
+    std::vector<std::vector<int>> machOperation;
+
+    std::vector<int> predecessorJob;
+    std::vector<int> successorJob;
+
+    std::vector<int> predecessorMach;
+    std::vector<int> successorMach;
+
+    void initializeInstance(const InstancePaths instancePaths);
+
+private:
+    void calculateComponents(int &machineCount, int &jobsCount);
+    void generateOperToJob(const std::vector<Operation> &operations_list);
+    void generateOperToMach(const std::vector<Operation> &operations_list);
+    void generateJobOperation(const std::vector<Operation> &operations_list);
+    void generateMachOperation(const std::vector<Operation> &operations_list);
+    void generateProcessingTime(const std::vector<Operation> &operations_list);
+    void generatePredecessorJob();
+    void generateSuccessorJob();
+    void generatePredecessorMach();
+    void generateSuccessorMach();
+    void configure(int n_mach, int n_jobs);
+};
+-e 
+
+===== ARQUIVO: ./include/setupParser.hpp =====
+
+#pragma once
+
+#include <vector>
+#include <string>
+
+std::vector<std::vector<std::vector<int>>> parseSetup(const std::string path, int machineCount, int jobCount);
+-e 
+
+===== ARQUIVO: ./include/scheduler.hpp =====
+
+#pragma once
+
+#include "instance.hpp"
+#include "valuer.hpp"
+
+// criar uma função que faz a temporização do agendamento
+
+// NOVA função desta etapa: recebe os tempos já calculados pelo valuer
+// (por referência, para alterar in-place) e empurra cada operação pro
+// mais tarde possível, respeitando:
+//   - o predecessor de máquina (não pode terminar depois do sucessor começar)
+//   - o predecessor de job (idem)
+//   - a deadline/due date do job (não pode empurrar além do necessário
+//     para não criar tardiness que não existia antes)
+void compactStartTimes(std::vector<double> &startTimeOp,
+                       const Instance &instance,
+                       const std::vector<Operation> &operationsList,
+                       const std::vector<JobInfo> &jobsList);-e 
+
+===== ARQUIVO: ./include/parameters.hpp =====
+
+#pragma once
+
+#include <string>
+
+enum class NeighborhoodType
+{
+    ADJACENT,
+    CRITICAL_PATH
+};
+enum class InitialSolutin
+{
+    SPT
+};
+
+class Parameters
+{
+public:
+    int maxIteration = 300;
+    int tabuTenure = 10;
+
+    int initialSolution = 1; // SPT
+    int neighborhood = 1;    // Adjacent
+
+    long maxMilliSeconds = -1;
+
+    unsigned cycleWindow = 6;  // Number of value observed
+    unsigned cycleRepeats = 3; // Number of repeat values
+
+    unsigned checkpointStackSize = 10; // checkpoints
+};-e 
+
+===== ARQUIVO: ./include/initialSetupParser.hpp =====
+
+#pragma once
+
+#include "instance.hpp"
+#include <vector>
+#include <string>
+
+std::vector<int> parseInitialSetup(const std::string path, int n_mach);-e 
+
+===== ARQUIVO: ./include/movement.hpp =====
+
+#pragma once
+
+enum class move
+{
+    SWAP
+};
+
+struct Solution
+{
+public:
+    std::vector<std::vector<int>> solution_matrix;
+};
+
+struct Movement
+{
+    Solution solution;
+    int op1 = -1;
+    int op2 = -1;
+    int moveType = 1;
+};-e 
+
+===== ARQUIVO: ./include/valuer.hpp =====
+
+#pragma once
+#include "instancePaths.hpp"
+#include "instance.hpp"
+#include <vector>
+
+std::vector<double> valuer(Instance &instance, double &makespan, std::vector<int> &criticalPredecessor,
+                           std::vector<ValidationOp> &certificate, std::vector<double> &startTimeJob);
+
+std::vector<double> calculator(const InstancePaths &instancePaths, double &makespan,
+                               std::vector<int> &criticalPredecessor, std::vector<ValidationOp> &certificate,
+                               std::vector<double> &startTimeJob);-e 
+
+===== ARQUIVO: ./include/checkPointStack.hpp =====
+
+#pragma once
+
+#include <vector>
+#include "movement.hpp"
+#include "tabuList.hpp"
+
+// ETAPA 6 do roteiro -- implemente depois de ter as Etapas 2 e 5 funcionando
+// e testadas isoladamente. Esta é a peça mais trabalhosa.
+//
+// SearchCheckpoint é a "foto": tudo que a busca sabia num momento em que
+// bateu um novo recorde -- a solução, os candidatos de vizinhança ainda
+// não testados a partir dali, e a lista tabu daquele instante.
+//
+// CheckpointStack é o "álbum": uma pilha de tamanho fixo (mais recente
+// primeiro) que guarda essas fotos e sabe devolver a mais recente que
+// ainda tem candidatos não explorados.
+
+struct SearchCheckpoint
+{
+    bool isEmpty = true; // equivalente ao isDummy do colega
+    Solution solution;
+    std::vector<Movement> remainingMoves;
+    TabuList tabuListSnapshot;
+};
+
+class CheckpointStack
+{
+public:
+    // empilha um novo checkpoint (chamar quando a busca bate um novo recorde)
+    void push(const SearchCheckpoint &checkpoint);
+
+    // devolve o checkpoint mais recente com candidatos ainda não testados;
+    // isEmpty=true no retorno significa "não há mais nenhum aproveitável"
+    SearchCheckpoint pop();
+
+    // depois de testar um candidato a partir de um checkpoint puxado por
+    // pop(), grave de volta a lista reduzida aqui -- para não repetir os
+    // mesmos candidatos numa próxima visita a esse mesmo checkpoint
+    void updateRemainingMoves(const std::vector<Movement> &remaining);
+
+private:
+    std::vector<SearchCheckpoint> stack;
+    bool empty = true;
+    unsigned maxSize;
+    unsigned base = 0;
+    unsigned top = 0;
+};
+-e 
+
+===== ARQUIVO: ./include/operationParser.hpp =====
+
+#pragma once
+
+#include "instance.hpp"
+#include <vector>
+#include <string>
+
+std::vector<Operation> parseOperation(const std::string &path);
+-e 
+
+===== ARQUIVO: ./include/jobParser.hpp =====
+
+#pragma once
+
+#include "instance.hpp"
+#include <string>
+#include <vector>
+
+std::vector<JobInfo> parseJob(const std::string &path);-e 
+
+===== ARQUIVO: ./include/cycleDetector.hpp =====
+
+#pragma once
+
+#include <vector>
+
+// ETAPA 5 do roteiro. Implemente e teste esta classe SOZINHA antes de
+// conectar no loop da Tabu -- escreva um pequeno teste manual alimentando
+// detect() com uma sequência de custos que você sabe que é cíclica
+// (ex: 10, 12, 15, 10, 12, 15, 10, 12, 15, ...) e confira se ela retorna
+// true na hora certa.
+//
+// A lógica (inspirada no TabuCycleDetector do colega, mas você pode
+// simplificar): guarda uma janela circular dos últimos 'cycleWindow'
+// valores de função objetivo. Quando um valor se repete dentro da janela,
+// guarda a distância entre as duas ocorrências como "período suspeito de
+// ciclo". Se esse período se confirmar 'cycleRepeats' vezes seguidas,
+// declara ciclo.
+
+class CycleDetector
+{
+public:
+    CycleDetector(unsigned cycleWindow, unsigned cycleRepeats);
+    bool detect(double currentCost, bool isNewBest);
+
+private:
+    // represent the cost of windows analised
+    std::vector<double> costHistory;
+    // guarda o indice do proximo valor a entrar no vetor
+    unsigned writePointer = 0;
+    // guarda a distancia do valor que repetiu
+    unsigned suspectedPeriod = 0;
+    // guarda a quantidade de vezes que a hipótese se confirmou
+    unsigned repeatsSoFar = 0;
+    // guarda o tamanho da janela analisada
+    unsigned window;
+    // Quantidade de confirmações para decretar o ciclo
+    unsigned requiredRepeats;
+};
+/*private:
+  // FIFO queue of last maxD selected objetives implemented as circular list
+  vector<double> objQ;
+  // position of last inserted element on objQ
+  unsigned qFrontPos;
+  // (qFrontPos+distFrontCycleLast)%maxD is supposed next objective value in
+  // possible current exploring cycle
+  unsigned distFrontCycleLast;
+  // current size of sequence of repeated objective values
+  unsigned cycleSize;
+  // max size of sequence of repeated objective values
+  unsigned maxD;
+  // max times a sequence of repeated objective values can repeat
+  unsigned maxC;
+};*/-e 
+
+===== ARQUIVO: ./include/neighborhoodGenerators.hpp =====
+
+#pragma once
+
+#include "movement.hpp"
+#include "instance.hpp"
+#include <vector>
+
+std::vector<Movement> adjacentNeighborhood(Solution &current);
+
+std::vector<int> generateCriticalPath(std::vector<double> &final_time_job, std::vector<int> &criticalPredecessor, Instance &instance,
+                                      double &makespan);
+
+std::vector<Movement> criticalPathNeighborhood(Solution &current, std::vector<int> &criticalPath, Instance &instance);
+
+//// TODO (Etapa 8, exemplo de próxima vizinhança a implementar):
+// inserção de uma operação antes/depois de outra na mesma máquina, guiada
+// por earliness/tardiness -- inspirado em cands_swap_earl_late do colega,
+// mas adaptado para sua representação (solution_matrix), sem precisar da
+// lista ligada mach/_mach dele.
+// std::vector<Movement> earlinessTardinessNeighborhood(Solution &current, Instance &instance, ...);
+-e 
+
+===== ARQUIVO: ./include/tabuList.hpp =====
+
+#pragma once
+
+#include <vector>
+
+class TabuList
+{
+public:
+    TabuList() = default;
+    explicit TabuList(int totalOperations);
+
+    void insertMovement(int op1, int op2, int currentIteration, int tenure);
+
+    bool isTabu(int op1, int op2, int currentIteration) const;
+
+    int age(int op1, int op2, int currentIteration, int tenure) const;
+
+    int timeToLeave(int op1, int op2, int currentIteration) const;
+
+private:
+    std::vector<std::vector<int>> tabuList;
+};-e 
+
+===== ARQUIVO: ./include/instancePaths.hpp =====
+
+#pragma once
+
+#include <string>
+
+struct InstancePaths
+{
+    std::string operationPath;
+    std::string jobPath;
+    std::string setupPath;
+    std::string initialSetupPath;
+};-e 
+
+===== ARQUIVO: ./include/csvUtils.hpp =====
+
+#pragma once
+
+#include <string>
+#include <vector>
+
+// Reads a CSV file and returns each row already split by comma.
+// Skips the first line if skipHeader is true.
+// Throws std::runtime_error if the file cannot be opened.
+std::vector<std::vector<std::string>> readRows(const std::string &path, bool skipHeader = true);-e 
+
+===== ARQUIVO: ./main.cpp =====
+
+#include "include/tabuList.hpp"
+#include <iostream>
+int main()
+{
+    TabuList tabu(5);
+
+    tabu.insertMovement(0, 1, 0, 5);
+    std::cout << tabu.isTabu(0, 1, 4) << std::endl;
+    std::cout << tabu.isTabu(0, 1, 10) << std::endl;
+    std::cout << tabu.isTabu(0, 2, 4) << std::endl;
+    std::cout << tabu.age(0, 1, 2, 5) << std::endl;
+    std::cout << tabu.timeToLeave(0, 1, 2) << std::endl;
+
+    return 0;
+}

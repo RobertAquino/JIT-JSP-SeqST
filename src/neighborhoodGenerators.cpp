@@ -1,5 +1,50 @@
 #include "../include/neighborhoodGenerators.hpp"
 
+void createSPT(Instance &instance, Solution &solution, int n_mach)
+{
+    solution.solution_matrix.clear();
+    solution.solution_matrix.resize(n_mach);
+    int size_op = instance.operationsList.size();
+    int size_job = instance.jobsList.size();
+    int processed = 0;
+    std::vector<int> job_processing;
+    job_processing.resize(size_job, 0);
+
+    while (processed < size_op)
+    {
+        int best_op = -1;
+        int best_job = -1;
+        double lower_time = 999999999.0;
+
+        for (int i = 0; i < size_job; i++)
+        {
+            if (job_processing[i] < (int)instance.jobOperation[i].size())
+            {
+                int op_index = instance.jobOperation[i][job_processing[i]];
+                double op_time = instance.operationsList[op_index].processing_time;
+
+                if (op_time < lower_time)
+                {
+                    best_job = i;
+                    best_op = op_index;
+                    lower_time = op_time;
+                }
+            }
+        }
+
+        if (best_op != -1)
+        {
+            solution.solution_matrix[instance.operationsList[best_op].id_machine].push_back(best_op);
+            job_processing[best_job]++;
+            processed++;
+        }
+        else
+        {
+            break; // Se não achar ninguém, sai do loop pra não travar o PC
+        }
+    }
+}
+
 std::vector<Movement> adjacentNeighborhood(Solution &current)
 {
     std::vector<Movement> neighbors;

@@ -14,7 +14,7 @@ std::vector<std::vector<std::vector<int>>> parseSetup(const std::string path, in
         int mach = std::stoi(fields[0]);
         int job1 = std::stoi(fields[1]);
         int job2 = std::stoi(fields[2]);
-        int tempo = std::stoi(fields[3]);
+        int time = std::stoi(fields[3]);
 
         bool validIndex = mach >= 0 && mach < machineCount &&
                           job1 >= 0 && job1 < jobCount &&
@@ -23,7 +23,7 @@ std::vector<std::vector<std::vector<int>>> parseSetup(const std::string path, in
         if (!validIndex)
             throw std::runtime_error("invalid index in setup file " + path);
 
-        setupMatrix[mach][job1][job2] = tempo;
+        setupMatrix[mach][job1][job2] = time;
     }
     return setupMatrix;
 }

@@ -1,53 +1,27 @@
 #include "../include/tabuSearch.hpp"
 #include "../include/instance.hpp"
 #include "../include/valuer.hpp"
-#include "../include/Movement.hpp"
+#include "../include/movement.hpp"
+#include "../include/parameters.hpp"
+#include "../include/neighborhoodGenerators.hpp"
+#include "../include/tabuList.hpp"
 
-void createSPT(Instance &instance, const std::vector<Operation> &operations_list, const std::vector<JobInfo> &jobs_list,
-               Solution &solution, int n_mach)
+#include <limits>
+
+struct SolutionState
 {
-    solution.solution_matrix.clear();
-    solution.solution_matrix.resize(n_mach);
-    int size_op = operations_list.size();
-    int size_job = jobs_list.size();
-    int processed = 0;
-    std::vector<int> job_processing;
-    job_processing.resize(size_job, 0);
+    Solution solution;
 
-    while (processed < size_op)
-    {
-        int best_op = -1;
-        int best_job = -1;
-        double lower_time = 999999999.0;
+    double makespan = 0;
+    double cost = 0;
 
-        for (int i = 0; i < size_job; i++)
-        {
-            if (job_processing[i] < (int)instance.jobOperation[i].size())
-            {
-                int op_index = instance.jobOperation[i][job_processing[i]];
-                double op_time = operations_list[op_index].processing_time;
+    bool feasible = false;
 
-                if (op_time < lower_time)
-                {
-                    best_job = i;
-                    best_op = op_index;
-                    lower_time = op_time;
-                }
-            }
-        }
-
-        if (best_op != -1)
-        {
-            solution.solution_matrix[operations_list[best_op].id_machine].push_back(best_op);
-            job_processing[best_job]++;
-            processed++;
-        }
-        else
-        {
-            break; // Se não achar ninguém, sai do loop pra não travar o PC
-        }
-    }
-}
+    std::vector<double> finalTimeJob;
+    std::vector<double> startTimeJob;
+    std::vector<int> criticalPredecessor;
+    std::vector<ValidationOp> certificate;
+};
 
 void changePredecessorMach(const Solution &solution, Instance &instance)
 {
@@ -65,160 +39,172 @@ void changePredecessorMach(const Solution &solution, Instance &instance)
     }
 }
 
-void changeSucessorMach(const Solution &solution, Instance &instance)
+void changeSuccessorMach(const Solution &solution, Instance &instance)
 {
     for (const auto &fila : solution.solution_matrix)
     {
         if (fila.empty())
             continue;
 
-        instance.sucessorMach[fila.back()] = -1;
+        instance.successorMach[fila.back()] = -1;
 
         for (size_t i = 0; i < fila.size() - 1; i++)
         {
-            instance.sucessorMach[fila[i]] = fila[i + 1];
+            instance.successorMach[fila[i]] = fila[i + 1];
         }
     }
 }
-double penaltySum(const std::vector<double> &final_time, const std::vector<JobInfo> &jobs_list, std::vector<double> &start_time_job)
+
+void changeMachines(const Solution &solution, Instance &instance)
+{
+    changePredecessorMach(solution, instance);
+    changeSuccessorMach(solution, instance);
+}
+double penaltySum(const std::vector<double> &finalTimeJob, Instance &instance, std::vector<double> &startTimeJob)
 {
     double sum = 0;
-    for (size_t i = 0; i < final_time.size(); i++)
+    for (size_t i = 0; i < finalTimeJob.size(); i++)
     {
-        double due_date = jobs_list[i].due_date;
-        double C_last = final_time[i];
-        double S_first = start_time_job[i];
+        double due_date = instance.jobsList[i].due_date;
+        double C_last = finalTimeJob[i];
+        double S_first = startTimeJob[i];
         double flow_time = C_last - S_first;
 
         if (C_last < due_date)
-            sum += (due_date - C_last) * jobs_list[i].earliness_penalty;
+            sum += (due_date - C_last) * instance.jobsList[i].earliness_penalty;
         else if (C_last > due_date)
-            sum += (C_last - due_date) * jobs_list[i].tardiness_penalty;
+            sum += (C_last - due_date) * instance.jobsList[i].tardiness_penalty;
 
-        sum += flow_time * jobs_list[i].flow_time;
+        sum += flow_time * instance.jobsList[i].flow_time;
     }
     return sum;
 }
-double TabuSearch(Instance &instance, double &makespan, std::string setupPath, std::string operationPath, std::string jobPath,
-                  std::vector<int> &criticalPredecessor, int optionNeighborhood, int optionImprovementStrategy,
-                  std::vector<double> &final_time_job, const std::vector<Operation> &operations_list, std::vector<JobInfo> &jobs_list,
-                  int n_mach, int &total_iteration, std::vector<ValidationOp> &certificate, std::vector<double> &start_time_job,
-                  std::vector<int> &initialSetup)
+
+std::vector<Movement> chosenNeighborhood(int chosenNeighborhood, Solution &current, std::vector<double> &finalTimeJob,
+                                         std::vector<int> &criticalPredecessor, Instance &instance, double &makespan)
 {
     std::vector<Movement> neighborhood;
-    double temp_makespan = makespan;
-    double best_cost;
-    std::vector<double> best_global_cost = final_time_job;
-    Solution initial_solution;
-
-    total_iteration = 0;
-    int max_iteration = 300;
-    int iteration = 0;
-    int tabu_tenure = (optionNeighborhood == 2) ? 5 : 50;
-
-    int total_ops = operations_list.size();
-    std::vector<std::vector<int>> tabu_list(total_ops, std::vector<int>(total_ops, 0));
-    createSPT(instance, operations_list, jobs_list, initial_solution, n_mach);
-
-    Solution current = initial_solution;
-    Solution best_global = initial_solution;
-
-    changePredecessorMach(initial_solution, instance);
-    changeSucessorMach(initial_solution, instance);
-
-    std::vector<double> current_final_time = valuer(operations_list, instance, temp_makespan, criticalPredecessor, jobs_list,
-                                                    certificate, start_time_job, initialSetup);
-    best_cost = penaltySum(current_final_time, jobs_list, start_time_job);
-
-    std::vector<ValidationOp> best_certificate = certificate;
-
-    while (iteration < max_iteration)
+    if (chosenNeighborhood == 1)
     {
-        bool find_movement = false;
-        total_iteration++;
+        neighborhood = adjacentNeighborhood(current);
+    }
+    if (chosenNeighborhood == 2)
+    {
+        std::vector<int> criticalPath = generateCriticalPath(finalTimeJob, criticalPredecessor, instance, makespan);
+        neighborhood = criticalPathNeighborhood(current, criticalPath, instance);
+    }
 
-        if (optionNeighborhood == 1)
-            neighborhood = adjacentNeighborhood(current);
+    return neighborhood;
+}
 
-        if (optionNeighborhood == 2)
-        {
-            std::vector<int> criticalPath = generateCriticalPath(current_final_time, criticalPredecessor, instance, makespan);
-            neighborhood = criticalPathNeighborhood(current, criticalPath, instance);
-        }
+SolutionState evaluateSolution(const Solution &solution, Instance &instance)
+{
+    SolutionState state;
+
+    state.solution = solution;
+
+    changeMachines(solution, instance);
+
+    state.finalTimeJob = valuer(instance, state.makespan, state.criticalPredecessor, state.certificate,
+                                state.startTimeJob);
+
+    if (state.makespan == 999999999.0)
+        return state;
+
+    state.feasible = true;
+    state.cost = penaltySum(state.finalTimeJob, instance, state.startTimeJob);
+
+    return state;
+}
+double TabuSearch(Instance &instance, Parameters &parameters, std::vector<int> &criticalPredecessor,
+                  std::vector<double> &finalTimeJob, int machineCount, std::vector<ValidationOp> &certificate,
+                  std::vector<double> &startTimeJob, double &bestMakespan)
+{
+    Solution initialSolution;
+
+    createSPT(instance, initialSolution, machineCount);
+
+    SolutionState current = evaluateSolution(initialSolution, instance);
+    SolutionState best = current;
+
+    int tabuSize = instance.operationsList.size();
+    TabuList tabuList(tabuSize);
+
+    int currentIteration = 0;
+    int iterationsWithoutImprovement = 0;
+
+    while (iterationsWithoutImprovement < parameters.iterationsWithoutImprovement)
+    {
+        currentIteration++;
+
+        std::vector<Movement> neighborhood = chosenNeighborhood(parameters.neighborhood, current.solution, current.finalTimeJob,
+                                                                current.criticalPredecessor, instance, current.makespan);
 
         if (neighborhood.empty())
             break;
 
-        double best_current_makespan = 0;
-        double best_cost_current = 99999999999.0;
-        Solution best_current = initial_solution;
-        int chosen_op1 = -1;
-        int chosen_op2 = -1;
-        std::vector<double> best_current_final_time;
-        std::vector<ValidationOp> best_current_certificate;
+        double infinity = std::numeric_limits<double>::infinity();
+        SolutionState bestCandidate;
+        bestCandidate.cost = infinity;
+
+        bool movementFound = false;
+        int chosenOp1 = -1;
+        int chosenOp2 = -1;
 
         for (size_t i = 0; i < neighborhood.size(); i++)
         {
-            Solution next_solution = neighborhood[i].solution;
-            double next_makespan;
+            Solution candidate = neighborhood[i].solution;
             int op1 = neighborhood[i].op1;
             int op2 = neighborhood[i].op2;
 
-            changePredecessorMach(next_solution, instance);
-            changeSucessorMach(next_solution, instance);
-            std::vector<ValidationOp> temp_certificate;
-            std::vector<double> next_final_time = valuer(operations_list, instance, next_makespan,
-                                                         criticalPredecessor, jobs_list, temp_certificate, start_time_job, initialSetup);
+            SolutionState stateCandidate = evaluateSolution(candidate, instance);
 
-            double next_cost = penaltySum(next_final_time, jobs_list, start_time_job);
-
-            if (next_makespan == 999999999.0)
+            if (!stateCandidate.feasible)
                 continue;
 
-            bool isTabu = (tabu_list[op1][op2] >= total_iteration);
-            if (isTabu && next_cost < best_cost)
-                isTabu = false;
+            bool isTabu = tabuList.isTabu(op1, op2, currentIteration);
+            bool meetsAspiration = (stateCandidate.cost < best.cost);
 
-            if (!isTabu && next_cost < best_cost_current)
+            if (isTabu && !meetsAspiration)
+                continue;
+
+            if (stateCandidate.cost < bestCandidate.cost)
             {
-                best_cost_current = next_cost;
-                best_current_makespan = next_makespan;
-                best_current = next_solution;
-                chosen_op1 = op1;
-                chosen_op2 = op2;
-                find_movement = true;
-                best_current_final_time = next_final_time;
-                best_current_certificate = temp_certificate;
+                bestCandidate = stateCandidate;
+                movementFound = true;
+                chosenOp1 = op1;
+                chosenOp2 = op2;
             }
         }
 
-        if (!find_movement)
+        if (!movementFound)
             break;
 
-        tabu_list[chosen_op1][chosen_op2] = total_iteration + tabu_tenure;
-        tabu_list[chosen_op2][chosen_op1] = total_iteration + tabu_tenure;
+        current = bestCandidate;
 
-        current = best_current;
-        changePredecessorMach(current, instance);
-        changeSucessorMach(current, instance);
-        current_final_time = best_current_final_time;
+        changeMachines(current.solution, instance);
 
-        if (best_cost_current < best_cost)
+        tabuList.insertMovement(chosenOp1, chosenOp2, currentIteration, parameters.tabuTenure);
+        tabuList.insertMovement(chosenOp2, chosenOp1, currentIteration, parameters.tabuTenure);
+
+        if (current.cost < best.cost)
         {
-            temp_makespan = best_current_makespan;
-            best_global = best_current;
-            best_cost = best_cost_current;
-            iteration = 0;
-            best_certificate = best_current_certificate;
+            best = current;
+            iterationsWithoutImprovement = 0;
         }
         else
         {
-            iteration++;
+            iterationsWithoutImprovement++;
         }
     }
 
-    makespan = temp_makespan;
-    certificate = best_certificate;
+    changeMachines(best.solution, instance);
 
-    return best_cost;
+    certificate = best.certificate;
+    criticalPredecessor = best.criticalPredecessor;
+    startTimeJob = best.startTimeJob;
+    finalTimeJob = best.finalTimeJob;
+    bestMakespan = best.makespan;
+
+    return best.cost;
 }

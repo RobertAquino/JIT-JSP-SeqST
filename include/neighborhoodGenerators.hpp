@@ -4,6 +4,8 @@
 #include "instance.hpp"
 #include <vector>
 
+void createSPT(Instance &instance, Solution &solution, int n_mach);
+
 std::vector<Movement> adjacentNeighborhood(Solution &current);
 
 std::vector<int> generateCriticalPath(std::vector<double> &final_time_job, std::vector<int> &criticalPredecessor, Instance &instance,

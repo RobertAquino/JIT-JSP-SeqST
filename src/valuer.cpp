@@ -129,10 +129,10 @@ void releaseSuccessorMachine(std::queue<int> &readyQueue, std::vector<int> &degr
         readyQueue.push(successor);
 }
 
-std::vector<double> buildInfeasibleResult(int jobCount, double &makespan)
+std::vector<double> buildInfeasibleResult(int jobsCount, double &makespan)
 {
     makespan = 999999999.0;
-    return std::vector<double>(jobCount, 999999999.0);
+    return std::vector<double>(jobsCount, 999999999.0);
 }
 
 double findMakespan(const std::vector<double> &jobsCost)
