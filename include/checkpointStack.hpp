@@ -3,17 +3,7 @@
 #include <vector>
 #include "movement.hpp"
 #include "tabuList.hpp"
-
-// ETAPA 6 do roteiro -- implemente depois de ter as Etapas 2 e 5 funcionando
-// e testadas isoladamente. Esta é a peça mais trabalhosa.
-//
-// SearchCheckpoint é a "foto": tudo que a busca sabia num momento em que
-// bateu um novo recorde -- a solução, os candidatos de vizinhança ainda
-// não testados a partir dali, e a lista tabu daquele instante.
-//
-// CheckpointStack é o "álbum": uma pilha de tamanho fixo (mais recente
-// primeiro) que guarda essas fotos e sabe devolver a mais recente que
-// ainda tem candidatos não explorados.
+#include "parameters.hpp"
 
 struct SearchCheckpoint
 {
@@ -21,13 +11,16 @@ struct SearchCheckpoint
     Solution solution;
     std::vector<Movement> remainingMoves;
     TabuList tabuListSnapshot;
+    int tabuIterationSnapshot;
 };
 
 class CheckpointStack
 {
 public:
+    CheckpointStack(unsigned checkpointStackSize);
+
     // empilha um novo checkpoint (chamar quando a busca bate um novo recorde)
-    void push(const SearchCheckpoint &checkpoint);
+    void push(SearchCheckpoint &checkpoint);
 
     // devolve o checkpoint mais recente com candidatos ainda não testados;
     // isEmpty=true no retorno significa "não há mais nenhum aproveitável"
@@ -40,8 +33,8 @@ public:
 
 private:
     std::vector<SearchCheckpoint> stack;
-    bool empty = true;
+    bool empty;
     unsigned maxSize;
-    unsigned base = 0;
-    unsigned top = 0;
+    unsigned base;
+    unsigned top;
 };

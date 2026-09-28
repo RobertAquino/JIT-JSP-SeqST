@@ -15,7 +15,7 @@ enum class InitialSolutin
 class Parameters
 {
 public:
-    int maxIteration = 300;
+    int iterationsWithoutImprovement = 500;
     int tabuTenure = 10;
 
     int initialSolution = 1; // SPT

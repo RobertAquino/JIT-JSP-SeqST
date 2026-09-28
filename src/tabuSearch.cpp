@@ -5,6 +5,8 @@
 #include "../include/parameters.hpp"
 #include "../include/neighborhoodGenerators.hpp"
 #include "../include/tabuList.hpp"
+#include "../include/cycleDetector.hpp"
+#include "../include/checkpointStack.hpp"
 
 #include <limits>
 
@@ -116,6 +118,100 @@ SolutionState evaluateSolution(const Solution &solution, Instance &instance)
 
     return state;
 }
+
+bool chooseBestCandidate(const std::vector<Movement> &neighborhood, TabuList &tabuList, Instance &instance, SolutionState &best, int &tabuIteration,
+                         int &chosenIndex, int &chosenOp1, int &chosenOp2, SolutionState &bestCandidate)
+{
+    double infinity = std::numeric_limits<double>::infinity();
+    bestCandidate.cost = infinity;
+
+    bool movementFound = false;
+    chosenIndex = -1;
+    chosenOp1 = -1;
+    chosenOp2 = -1;
+
+    for (size_t i = 0; i < neighborhood.size(); i++)
+    {
+        Solution candidate = neighborhood[i].solution;
+        int op1 = neighborhood[i].op1;
+        int op2 = neighborhood[i].op2;
+
+        SolutionState stateCandidate = evaluateSolution(candidate, instance);
+
+        if (!stateCandidate.feasible)
+            continue;
+
+        bool isTabu = tabuList.isTabu(op1, op2, tabuIteration);
+        bool meetsAspiration = (stateCandidate.cost < best.cost);
+
+        if (isTabu && !meetsAspiration)
+            continue;
+
+        if (stateCandidate.cost < bestCandidate.cost)
+        {
+            bestCandidate = stateCandidate;
+            movementFound = true;
+            chosenOp1 = op1;
+            chosenOp2 = op2;
+            chosenIndex = i;
+        }
+    }
+
+    return movementFound;
+}
+
+bool restoreCheckpoint(CheckpointStack &checkpointStack, Instance &instance, SolutionState &current, TabuList &tabuList, int &tabuIteration, std::vector<Movement> &neighborhood)
+{
+    SearchCheckpoint checkpoint = checkpointStack.pop();
+
+    if (checkpoint.isEmpty)
+        return false;
+
+    current = evaluateSolution(checkpoint.solution, instance);
+    tabuList = checkpoint.tabuListSnapshot;
+    tabuIteration = checkpoint.tabuIterationSnapshot;
+
+    neighborhood = checkpoint.remainingMoves;
+
+    return true;
+}
+
+std::vector<Movement> remainingAfterChoice(const std::vector<Movement> &neighborhood, int chosenIndex)
+{
+    std::vector<Movement> remaining = neighborhood;
+    remaining.erase(remaining.begin() + chosenIndex);
+
+    return remaining;
+}
+
+void checkpointAfterChoice(CheckpointStack &checkpointStack, const SolutionState &current, const TabuList &tabuList,
+                           int tabuIteration, const std::vector<Movement> &remaining)
+{
+    SearchCheckpoint newCheckpoint;
+
+    newCheckpoint.solution = current.solution;
+    newCheckpoint.remainingMoves = remaining;
+    newCheckpoint.tabuListSnapshot = tabuList;
+    newCheckpoint.tabuIterationSnapshot = tabuIteration;
+
+    checkpointStack.push(newCheckpoint);
+    return;
+}
+
+void updateBest(const SolutionState &current, SolutionState &best, int &iterationsWithoutImprovement, bool &isNewBest)
+{
+    if (current.cost < best.cost)
+    {
+        best = current;
+        iterationsWithoutImprovement = 0;
+        isNewBest = true;
+    }
+    else
+    {
+        iterationsWithoutImprovement++;
+        isNewBest = false;
+    }
+}
 double TabuSearch(Instance &instance, Parameters &parameters, std::vector<int> &criticalPredecessor,
                   std::vector<double> &finalTimeJob, int machineCount, std::vector<ValidationOp> &certificate,
                   std::vector<double> &startTimeJob, double &bestMakespan)
@@ -130,72 +226,106 @@ double TabuSearch(Instance &instance, Parameters &parameters, std::vector<int> &
     int tabuSize = instance.operationsList.size();
     TabuList tabuList(tabuSize);
 
+    CycleDetector cycleDetector(parameters.cycleWindow, parameters.cycleRepeats);
+    CheckpointStack checkpointStack(parameters.checkpointStackSize);
+
+    bool isNewBest = true;
+
     int currentIteration = 0;
+    int tabuIteration = 0;
     int iterationsWithoutImprovement = 0;
 
     while (iterationsWithoutImprovement < parameters.iterationsWithoutImprovement)
     {
         currentIteration++;
+        tabuIteration++;
 
-        std::vector<Movement> neighborhood = chosenNeighborhood(parameters.neighborhood, current.solution, current.finalTimeJob,
-                                                                current.criticalPredecessor, instance, current.makespan);
+        bool cycling = cycleDetector.detect(current.cost, isNewBest);
+        bool jumped;
 
-        if (neighborhood.empty())
-            break;
+        std::vector<Movement> neighborhood;
 
-        double infinity = std::numeric_limits<double>::infinity();
-        SolutionState bestCandidate;
-        bestCandidate.cost = infinity;
-
-        bool movementFound = false;
-        int chosenOp1 = -1;
-        int chosenOp2 = -1;
-
-        for (size_t i = 0; i < neighborhood.size(); i++)
+        if (cycling)
         {
-            Solution candidate = neighborhood[i].solution;
-            int op1 = neighborhood[i].op1;
-            int op2 = neighborhood[i].op2;
 
-            SolutionState stateCandidate = evaluateSolution(candidate, instance);
+            bool restored = restoreCheckpoint(checkpointStack, instance, current, tabuList, tabuIteration, neighborhood);
 
-            if (!stateCandidate.feasible)
-                continue;
+            if (!restored)
+                break;
 
-            bool isTabu = tabuList.isTabu(op1, op2, currentIteration);
-            bool meetsAspiration = (stateCandidate.cost < best.cost);
-
-            if (isTabu && !meetsAspiration)
-                continue;
-
-            if (stateCandidate.cost < bestCandidate.cost)
-            {
-                bestCandidate = stateCandidate;
-                movementFound = true;
-                chosenOp1 = op1;
-                chosenOp2 = op2;
-            }
+            jumped = true;
+        }
+        else
+        {
+            neighborhood = chosenNeighborhood(parameters.neighborhood, current.solution, current.finalTimeJob,
+                                              current.criticalPredecessor, instance, current.makespan);
+            jumped = false;
         }
 
-        if (!movementFound)
+        if (neighborhood.empty())
+        {
+            bool restored = restoreCheckpoint(checkpointStack, instance, current, tabuList, tabuIteration, neighborhood);
+
+            if (!restored)
+                break;
+
+            jumped = true;
+        }
+
+        int chosenIndex;
+        int chosenOp1;
+        int chosenOp2;
+
+        SolutionState bestCandidate;
+
+        bool movementFound = chooseBestCandidate(neighborhood, tabuList, instance, best, tabuIteration, chosenIndex, chosenOp1, chosenOp2, bestCandidate);
+
+        bool terminateSearch = false;
+
+        while (!movementFound)
+        {
+            if (jumped)
+            {
+                std::vector<Movement> emptyRemaining;
+                checkpointStack.updateRemainingMoves(emptyRemaining);
+            }
+
+            bool restored = restoreCheckpoint(checkpointStack, instance, current, tabuList, tabuIteration, neighborhood);
+
+            if (!restored)
+            {
+                terminateSearch = true;
+                break;
+            }
+
+            movementFound = chooseBestCandidate(neighborhood, tabuList, instance, best, tabuIteration, chosenIndex, chosenOp1, chosenOp2, bestCandidate);
+
+            jumped = true;
+        }
+
+        if (terminateSearch)
             break;
+
+        std::vector<Movement> remaining = remainingAfterChoice(neighborhood, chosenIndex);
+
+        if (isNewBest && !jumped)
+        {
+            checkpointAfterChoice(checkpointStack, current, tabuList, tabuIteration, remaining);
+        }
+
+        if (jumped)
+        {
+            checkpointStack.updateRemainingMoves(remaining);
+        }
 
         current = bestCandidate;
 
         changeMachines(current.solution, instance);
 
-        tabuList.insertMovement(chosenOp1, chosenOp2, currentIteration, parameters.tabuTenure);
-        tabuList.insertMovement(chosenOp2, chosenOp1, currentIteration, parameters.tabuTenure);
+        tabuList.insertMovement(chosenOp1, chosenOp2, tabuIteration, parameters.tabuTenure);
+        tabuList.insertMovement(chosenOp2, chosenOp1, tabuIteration, parameters.tabuTenure);
 
-        if (current.cost < best.cost)
-        {
-            best = current;
-            iterationsWithoutImprovement = 0;
-        }
-        else
-        {
-            iterationsWithoutImprovement++;
-        }
+        updateBest(current, best, iterationsWithoutImprovement, isNewBest);
     }
 
     changeMachines(best.solution, instance);

@@ -1,20 +1,6 @@
-/*class CycleDetector
-{
-public:
-    CycleDetector(unsigned cycleWindow, unsigned cycleRepeats);
-    bool detect(double currentCost, bool isNewBest);
-
-private:
-    std::vector<double> costHistory;
-    unsigned frontPos = 0;
-    unsigned suspectedPeriod = 0;
-    unsigned repeatsSoFar = 0;
-    unsigned window;
-    unsigned requiredRepeats;
-};
-*/
-
 #include "../include/cycleDetector.hpp"
+
+#include <cmath>
 
 CycleDetector::CycleDetector(unsigned cycleWindow, unsigned cycleRepeats)
 {
@@ -34,7 +20,54 @@ bool CycleDetector::detect(double currentCost, bool isNewBest)
             costHistory[i] = -1;
     }
 
+    double tolerance = 0.10;
+    if (suspectedPeriod != 0)
+    {
+        size_t index = (writePointer + window - suspectedPeriod) % window;
+        if (std::abs(currentCost - costHistory[index]) <= tolerance)
+        {
+            repeatsSoFar++;
+
+            if (repeatsSoFar >= requiredRepeats)
+            {
+                costHistory[writePointer] = currentCost;
+                ++writePointer;
+                writePointer = writePointer % window;
+                return true;
+            }
+        }
+        else
+        {
+            suspectedPeriod = 0;
+            repeatsSoFar = 0;
+
+            int count = 1;
+
+            while (count < window)
+            {
+                int index = (writePointer + window - count) % window;
+                if (std::abs(currentCost - costHistory[index]) <= tolerance)
+                    suspectedPeriod = count;
+                count++;
+            }
+        }
+    }
+    else
+    {
+        int count = 1;
+
+        while (count < window)
+        {
+            int index = (writePointer + window - count) % window;
+            if (std::abs(currentCost - costHistory[index]) <= tolerance)
+                suspectedPeriod = count;
+            count++;
+        }
+    }
+
+    costHistory[writePointer] = currentCost;
     ++writePointer;
     writePointer = writePointer % window;
-    costHistory[writePointer] = currentCost;
+
+    return false;
 }
