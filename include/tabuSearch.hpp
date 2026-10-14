@@ -1,20 +1,33 @@
 #pragma once
 
 #include "instance.hpp"
+#include "../include/instance.hpp"
+#include "../include/valuer.hpp"
+#include "../include/movement.hpp"
+#include "../include/parameters.hpp"
+#include "../include/neighborhoodGenerators.hpp"
+#include "../include/tabuList.hpp"
+#include "../include/cycleDetector.hpp"
+#include "../include/checkpointStack.hpp"
 #include <vector>
 
-void createSPT(Instance &instance, const std::vector<Operation> &operations_list, const std::vector<JobInfo> &jobs_list,
-               Solution &solution, int n_mach);
+struct SolutionState
+{
+    Solution solution;
 
-void changePredecessorMach(const Solution &solution, Instance &instance);
-void changeSucessorMach(const Solution &solution, Instance &instance);
-std::vector<Movement> adjacentNeighborhood(Solution &current);
-std::vector<int> generateCriticalPath(std::vector<double> &final_time_job, std::vector<int> &criticalPredecessor, Instance &instance,
-                                      double &makespan);
-std::vector<Movement> criticalPathNeighborhood(Solution &current, std::vector<int> &criticalPath, Instance &instance);
-double penaltySum(const std::vector<double> &finalTime, Instance &instance, std::vector<double> &startTimeJob);
-double TabuSearch(Instance &instance, double &makespan, std::string setupPath, std::string operationPath, std::string jobPath,
-                  std::vector<int> &criticalPredecessor, int optionNeighborhood, int optionImprovementStrategy,
-                  std::vector<double> &final_time_job, const std::vector<Operation> &operations_list, std::vector<JobInfo> &jobs_list,
-                  int n_mach, int &total_iteration, std::vector<ValidationOp> &certificate, std::vector<double> &start_time_job,
-                  std::vector<int> &initialSetup);
+    double makespan = 0;
+    double cost = 0;
+
+    bool feasible = false;
+
+    std::vector<double> finalTimeJob;
+    std::vector<double> startTimeJob;
+    std::vector<int> criticalPredecessor;
+    std::vector<ValidationOp> certificate;
+};
+
+void changeMachines(const Solution &solution, Instance &instance);
+
+double TabuSearch(Instance &instance, Parameters &parameters, std::vector<int> &criticalPredecessor,
+                  std::vector<double> &finalTimeJob, int machineCount, std::vector<ValidationOp> &certificate,
+                  std::vector<double> &startTimeJob, double &bestMakespan);

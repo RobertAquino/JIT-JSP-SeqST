@@ -122,7 +122,8 @@ void Instance::initializeInstance(InstancePaths instancePaths)
     operationsList = parseOperation(instancePaths.operationPath);
     jobsList = parseJob(instancePaths.jobPath);
 
-    int machineCount, jobsCount;
+    int machineCount = -1;
+    int jobsCount = -1;
     calculateComponents(machineCount, jobsCount);
 
     configure(machineCount, jobsCount);

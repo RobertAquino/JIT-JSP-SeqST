@@ -15,7 +15,7 @@ enum class InitialSolutin
 class Parameters
 {
 public:
-    int iterationsWithoutImprovement = 500;
+    int iterationsWithoutImprovement = 555000;
     int tabuTenure = 10;
 
     int initialSolution = 1; // SPT
@@ -26,5 +26,5 @@ public:
     unsigned cycleWindow = 6;  // Number of value observed
     unsigned cycleRepeats = 3; // Number of repeat values
 
-    unsigned checkpointStackSize = 10; // checkpoints
+    unsigned checkpointStackSize = 20; // checkpoints
 };

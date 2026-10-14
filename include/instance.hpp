@@ -42,7 +42,7 @@ public:
     std::vector<Operation> operationsList;
     std::vector<JobInfo> jobsList;
     std::vector<int> initialSetup;
-    std::vector<int> processingTime;
+    std::vector<double> processingTime;
 
     // Talvez uma exclusão aqui
     std::vector<int> operToJob;

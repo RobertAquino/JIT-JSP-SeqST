@@ -30,41 +30,6 @@ std::queue<int> buildInitialReadyQueue(const std::vector<int> &degree, int size)
     return readyQueue;
 }
 
-double computeJobReadyTime(const Instance &instance, std::vector<double> &finalTimeOperation, int current)
-{
-    int predecessorJob = instance.predecessorJob[current];
-
-    if (predecessorJob == -1)
-        return instance.jobsList[instance.operationsList[current].id_job].release_date;
-
-    return finalTimeOperation[predecessorJob];
-}
-
-double computeMachineReadyTime(const Instance &instance, std::vector<double> &finalTimeOperation, int current)
-{
-    int predecessorMachine = instance.predecessorMach[current];
-
-    if (predecessorMachine == -1)
-        return 0.0;
-
-    return finalTimeOperation[predecessorMachine];
-}
-
-double selectBottleneck(double timeJobFinal, double timeMachineFinal, int predecessorJob, int predecessorMach,
-                        int &criticalPredecessorOut)
-{
-    if (timeJobFinal > timeMachineFinal)
-    {
-        criticalPredecessorOut = predecessorJob;
-        return timeJobFinal;
-    }
-    else
-    {
-        criticalPredecessorOut = predecessorMach;
-        return timeMachineFinal;
-    }
-}
-
 double computeSetupTime(const Instance &instance, int current)
 {
     int machine = instance.operationsList[current].id_machine;
@@ -84,6 +49,41 @@ double computeSetupTime(const Instance &instance, int current)
     return instance.setupMatrix[machine][initialJob][job];
 }
 
+double computeJobReadyTime(const Instance &instance, std::vector<double> &finalTimeOperation, int current)
+{
+    int predecessorJob = instance.predecessorJob[current];
+
+    if (predecessorJob == -1)
+        return instance.jobsList[instance.operationsList[current].id_job].release_date;
+
+    return finalTimeOperation[predecessorJob];
+}
+
+double computeMachineReadyTime(const Instance &instance, std::vector<double> &finalTimeOperation, int current, double setupTime)
+{
+    int predecessorMachine = instance.predecessorMach[current];
+
+    if (predecessorMachine == -1)
+        return setupTime;
+
+    return finalTimeOperation[predecessorMachine] + setupTime;
+}
+
+double selectBottleneck(double timeJobFinal, double timeMachineFinal, int predecessorJob, int predecessorMach,
+                        int &criticalPredecessorOut)
+{
+    if (timeJobFinal > timeMachineFinal)
+    {
+        criticalPredecessorOut = predecessorJob;
+        return timeJobFinal;
+    }
+    else
+    {
+        criticalPredecessorOut = predecessorMach;
+        return timeMachineFinal;
+    }
+}
+
 ValidationOp buildCertificateEntry(const Instance &instance, int current, double startOperation, double setupTime, double duration)
 {
     ValidationOp entry;
@@ -91,7 +91,7 @@ ValidationOp buildCertificateEntry(const Instance &instance, int current, double
     entry.id_operation = current;
     entry.id_job = instance.operationsList[current].id_job;
     entry.id_machine = instance.operationsList[current].id_machine;
-    entry.release_date = startOperation;
+    entry.release_date = instance.jobsList[instance.operationsList[current].id_job].release_date;
     entry.start_time = startOperation;
     entry.processing_time = instance.processingTime[current];
     entry.setup_time = setupTime;
@@ -156,11 +156,10 @@ std::vector<double> valuer(Instance &instance, double &makespan, std::vector<int
     double startTimeOperation;
     double finalTimeJob;
     double finalTimeMachine;
+
     int size = instance.operationsList.size();
     int jobsCount = instance.jobsList.size();
     int processed = 0;
-    int predecessorJob;
-    int predecessorMach;
     int criticalPredecessorOut;
     int currentJob;
 
@@ -179,8 +178,10 @@ std::vector<double> valuer(Instance &instance, double &makespan, std::vector<int
         int current = readyQueue.front();
         readyQueue.pop();
 
+        double setupTime = computeSetupTime(instance, current);
+
         finalTimeJob = computeJobReadyTime(instance, finalTimeOperation, current);
-        finalTimeMachine = computeMachineReadyTime(instance, finalTimeOperation, current);
+        finalTimeMachine = computeMachineReadyTime(instance, finalTimeOperation, current, setupTime);
 
         startTimeOperation = selectBottleneck(finalTimeJob, finalTimeMachine,
                                               instance.predecessorJob[current], instance.predecessorMach[current], criticalPredecessorOut);
@@ -190,8 +191,7 @@ std::vector<double> valuer(Instance &instance, double &makespan, std::vector<int
         if (instance.predecessorJob[current] == -1)
             startTimeJob[instance.operationsList[current].id_job] = startTimeOperation;
 
-        double setupTime = computeSetupTime(instance, current);
-        double duration = startTimeOperation + instance.processingTime[current] + setupTime;
+        double duration = startTimeOperation + instance.processingTime[current];
 
         finalTimeOperation[current] = duration;
 
@@ -217,13 +217,13 @@ std::vector<double> valuer(Instance &instance, double &makespan, std::vector<int
     makespan = 0;
 
     if (processed != size)
-        return jobsCost = buildInfeasibleResult(jobsCount, makespan);
+        return buildInfeasibleResult(jobsCount, makespan);
 
     makespan = findMakespan(jobsCost);
 
     return jobsCost;
 }
-std::vector<double> calculator(const InstancePaths instancePaths, double &makespan,
+std::vector<double> calculator(const InstancePaths &instancePaths, double &makespan,
                                std::vector<int> &criticalPredecessor, std::vector<ValidationOp> &certificate,
                                std::vector<double> &startTimeJob)
 {

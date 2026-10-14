@@ -1,5 +1,7 @@
 #include "../include/neighborhoodGenerators.hpp"
 
+#include <stdexcept>
+
 void createSPT(Instance &instance, Solution &solution, int n_mach)
 {
     solution.solution_matrix.clear();
@@ -105,6 +107,11 @@ std::vector<int> generateCriticalPath(std::vector<double> &final_time_job, std::
 std::vector<Movement> criticalPathNeighborhood(Solution &current, std::vector<int> &criticalPath, Instance &instance)
 {
     std::vector<Movement> neighbors;
+
+    if (criticalPath.empty())
+    {
+        throw std::runtime_error("Critical Path is empty");
+    }
 
     for (size_t j = 0; j < criticalPath.size() - 1; j++)
     {

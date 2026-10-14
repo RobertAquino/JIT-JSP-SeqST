@@ -41,7 +41,7 @@ bool CycleDetector::detect(double currentCost, bool isNewBest)
             suspectedPeriod = 0;
             repeatsSoFar = 0;
 
-            int count = 1;
+            unsigned int count = 1;
 
             while (count < window)
             {
@@ -54,7 +54,7 @@ bool CycleDetector::detect(double currentCost, bool isNewBest)
     }
     else
     {
-        int count = 1;
+        unsigned int count = 1;
 
         while (count < window)
         {
