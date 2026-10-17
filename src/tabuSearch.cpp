@@ -2,6 +2,10 @@
 
 #include <chrono>
 #include <limits>
+#include <iostream>
+
+long long evaluationCount = 0;
+long long cplexCount = 0;
 
 bool searchTimeExpired(
     const std::chrono::steady_clock::time_point &startTime,
@@ -57,28 +61,8 @@ void changeMachines(const Solution &solution, Instance &instance)
     changePredecessorMach(solution, instance);
     changeSuccessorMach(solution, instance);
 }
-double penaltySum(const std::vector<double> &finalTimeJob, Instance &instance, std::vector<double> &startTimeJob)
-{
-    double sum = 0;
-    for (size_t i = 0; i < finalTimeJob.size(); i++)
-    {
-        double due_date = instance.jobsList[i].due_date;
-        double C_last = finalTimeJob[i];
-        double S_first = startTimeJob[i];
-        double flow_time = C_last - S_first;
 
-        if (C_last < due_date)
-            sum += (due_date - C_last) * instance.jobsList[i].earliness_penalty;
-        else if (C_last > due_date)
-            sum += (C_last - due_date) * instance.jobsList[i].tardiness_penalty;
-
-        sum += flow_time * instance.jobsList[i].flow_time;
-    }
-    return sum;
-}
-
-std::vector<Movement> chosenNeighborhood(int chosenNeighborhood, Solution &current, std::vector<double> &finalTimeJob,
-                                         std::vector<int> &criticalPredecessor, Instance &instance, double &makespan)
+std::vector<Movement> chosenNeighborhood(int chosenNeighborhood, Solution &current, Instance &instance)
 {
     std::vector<Movement> neighborhood;
     if (chosenNeighborhood == 1)
@@ -87,14 +71,55 @@ std::vector<Movement> chosenNeighborhood(int chosenNeighborhood, Solution &curre
     }
     if (chosenNeighborhood == 2)
     {
-        std::vector<int> criticalPath = generateCriticalPath(finalTimeJob, criticalPredecessor, instance, makespan);
+        changeMachines(current, instance);
+        std::vector<int> criticalPath = generateCriticalPath(instance);
         neighborhood = criticalPathNeighborhood(current, criticalPath, instance);
     }
 
     return neighborhood;
 }
+double computeSetupTime(const Instance &instance, int current)
+{
+    int machine = instance.operationsList[current].id_machine;
+    int job = instance.operationsList[current].id_job;
+    int predecessorMachine = instance.predecessorMach[current];
 
-SolutionState evaluateSolution(const Solution &solution, Instance &instance)
+    if (predecessorMachine != -1)
+    {
+        int previousJob = instance.operationsList[predecessorMachine].id_job;
+        return instance.setupMatrix[machine][previousJob][job];
+    }
+
+    int initialJob = instance.initialSetup[machine];
+    if (initialJob == -1 || initialJob == job)
+        return 0.0;
+
+    return instance.setupMatrix[machine][initialJob][job];
+}
+
+SolutionState evaluateASAPSolution(const Solution &solution, Instance &instance)
+{
+    evaluationCount++;
+
+    SolutionState state;
+
+    state.solution = solution;
+
+    changeMachines(solution, instance);
+
+    ASAPResult asap =
+        calculateASAP(instance);
+
+    if (!asap.feasible)
+        return state;
+
+    state.feasible = true;
+
+    state.cost = asap.cost;
+
+    return state;
+}
+SolutionState evaluateSolution(const Solution &solution, Instance &instance, TimingSolver &solver)
 {
     SolutionState state;
 
@@ -102,84 +127,118 @@ SolutionState evaluateSolution(const Solution &solution, Instance &instance)
 
     changeMachines(solution, instance);
 
-    state.finalTimeJob = valuer(instance, state.makespan, state.criticalPredecessor, state.certificate,
-                                state.startTimeJob);
+    bool isFeasible = valuer(instance);
 
-    if (state.makespan == 999999999.0)
+    if (!isFeasible)
         return state;
 
     state.feasible = true;
-    state.cost = penaltySum(state.finalTimeJob, instance, state.startTimeJob);
+
+    cplexCount++;
+    CostResult timing = solver.solveCost(state, instance);
+
+    if (!timing.feasible)
+    {
+        state.feasible = false;
+        return state;
+    }
+
+    state.cost = timing.cost;
+
+    state.timingOptimal = timing.optimal;
 
     return state;
 }
 
 bool chooseBestCandidate(const std::vector<Movement> &neighborhood, TabuList &tabuList, Instance &instance,
-                         SolutionState &best, int &tabuIteration, int &chosenIndex, int &chosenOp1, int &chosenOp2,
+                         int &tabuIteration, int &chosenIndex, int &chosenOp1, int &chosenOp2,
                          SolutionState &bestCandidate, const std::chrono::steady_clock::time_point &searchStart,
-                         long maxMilliSeconds, bool &timeExpired)
+                         long maxMilliSeconds, bool &timeExpired, TimingSolver &solver)
 {
     double infinity = std::numeric_limits<double>::infinity();
-    bestCandidate.cost = infinity;
+
+    double bestASAPCost = infinity;
 
     bool movementFound = false;
+
     chosenIndex = -1;
     chosenOp1 = -1;
     chosenOp2 = -1;
 
+    Solution bestASAPSolution;
+
     for (size_t i = 0; i < neighborhood.size(); i++)
     {
-        if (searchTimeExpired(
-                searchStart,
-                maxMilliSeconds))
+        if (searchTimeExpired(searchStart, maxMilliSeconds))
         {
             timeExpired = true;
             return false;
         }
-        Solution candidate = neighborhood[i].solution;
+
+        const Solution &candidate = neighborhood[i].solution;
+
         int op1 = neighborhood[i].op1;
+
         int op2 = neighborhood[i].op2;
 
-        SolutionState stateCandidate = evaluateSolution(candidate, instance);
+        // Primeiro olha tabu.
+        bool isTabu = tabuList.isTabu(op1, op2, tabuIteration);
 
-        if (searchTimeExpired(
-                searchStart,
-                maxMilliSeconds))
-        {
-            timeExpired = true;
-            return false;
-        }
+        if (isTabu)
+            continue;
+
+        SolutionState stateCandidate = evaluateASAPSolution(candidate, instance);
 
         if (!stateCandidate.feasible)
             continue;
 
-        bool isTabu = tabuList.isTabu(op1, op2, tabuIteration);
-        bool meetsAspiration = (stateCandidate.cost < best.cost);
-
-        if (isTabu && !meetsAspiration)
-            continue;
-
-        if (stateCandidate.cost < bestCandidate.cost)
+        if (stateCandidate.cost < bestASAPCost)
         {
-            bestCandidate = stateCandidate;
-            movementFound = true;
+            bestASAPCost = stateCandidate.cost;
+
+            bestASAPSolution = candidate;
+
+            chosenIndex = static_cast<int>(i);
+
             chosenOp1 = op1;
             chosenOp2 = op2;
-            chosenIndex = i;
+
+            movementFound = true;
         }
     }
 
-    return movementFound;
+    if (!movementFound)
+        return false;
+
+    if (searchTimeExpired(searchStart, maxMilliSeconds))
+    {
+        timeExpired = true;
+        return false;
+    }
+
+    bestCandidate = evaluateSolution(bestASAPSolution, instance, solver);
+
+    if (searchTimeExpired(searchStart, maxMilliSeconds))
+    {
+        timeExpired = true;
+        return false;
+    }
+
+    if (!bestCandidate.feasible)
+        return false;
+
+    return true;
 }
 
-bool restoreCheckpoint(CheckpointStack &checkpointStack, Instance &instance, SolutionState &current, TabuList &tabuList, int &tabuIteration, std::vector<Movement> &neighborhood)
+bool restoreCheckpoint(CheckpointStack &checkpointStack, Instance &instance, SolutionState &current, TabuList &tabuList,
+                       int &tabuIteration, std::vector<Movement> &neighborhood, TimingSolver &solver)
 {
     SearchCheckpoint checkpoint = checkpointStack.pop();
 
     if (checkpoint.isEmpty)
         return false;
 
-    current = evaluateSolution(checkpoint.solution, instance);
+    current = evaluateSolution(checkpoint.solution, instance, solver);
     tabuList = checkpoint.tabuListSnapshot;
     tabuIteration = checkpoint.tabuIterationSnapshot;
 
@@ -224,17 +283,48 @@ void updateBest(const SolutionState &current, SolutionState &best, int &iteratio
         isNewBest = false;
     }
 }
-double TabuSearch(Instance &instance, Parameters &parameters, std::vector<int> &criticalPredecessor,
-                  std::vector<double> &finalTimeJob, int machineCount, std::vector<ValidationOp> &certificate,
-                  std::vector<double> &startTimeJob, double &bestMakespan)
+
+std::vector<ValidationOp> buildCertificate(const Instance &instance, const TimingResult &timing)
 {
+
+    size_t size = instance.operationsList.size();
+    std::vector<ValidationOp> certificate;
+    certificate.resize(size);
+
+    for (size_t i = 0; i < size; i++)
+    {
+        ValidationOp entry;
+        int current = instance.operationsList[i].id_operation;
+
+        entry.id_operation = current;
+        entry.id_job = instance.operationsList[current].id_job;
+        entry.id_machine = instance.operationsList[current].id_machine;
+        entry.release_date = instance.jobsList[instance.operationsList[current].id_job].release_date;
+        entry.start_time = timing.startTimeOp[current];
+        entry.final_time = timing.finalTimeOp[current];
+        entry.processing_time = instance.processingTime[current];
+        entry.setup_time = computeSetupTime(instance, current);
+
+        certificate[current] = entry;
+    }
+    return certificate;
+}
+
+double TabuSearch(Instance &instance, Parameters &parameters, int machineCount, std::vector<ValidationOp> &certificate,
+                  std::vector<double> &startTimeJob, double &bestMakespan, std::vector<double> &finalTimeJob)
+{
+    evaluationCount = 0;
+    cplexCount = 0;
+
     auto searchStart = std::chrono::steady_clock::now();
+
+    TimingSolver solver(instance);
 
     Solution initialSolution;
 
     createSPT(instance, initialSolution, machineCount);
 
-    SolutionState current = evaluateSolution(initialSolution, instance);
+    SolutionState current = evaluateSolution(initialSolution, instance, solver);
 
     SolutionState best = current;
 
@@ -257,7 +347,6 @@ double TabuSearch(Instance &instance, Parameters &parameters, std::vector<int> &
 
     while (iterationsWithoutImprovement < parameters.iterationsWithoutImprovement)
     {
-        // PRIMEIRA verificação do tempo
         if (searchTimeExpired(searchStart, parameters.maxMilliSeconds))
         {
             break;
@@ -274,7 +363,7 @@ double TabuSearch(Instance &instance, Parameters &parameters, std::vector<int> &
 
         if (cycling)
         {
-            bool restored = restoreCheckpoint(checkpointStack, instance, current, tabuList, tabuIteration, neighborhood);
+            bool restored = restoreCheckpoint(checkpointStack, instance, current, tabuList, tabuIteration, neighborhood, solver);
 
             if (!restored)
                 break;
@@ -283,15 +372,14 @@ double TabuSearch(Instance &instance, Parameters &parameters, std::vector<int> &
         }
         else
         {
-            neighborhood = chosenNeighborhood(parameters.neighborhood, current.solution, current.finalTimeJob,
-                                              current.criticalPredecessor, instance, current.makespan);
+            neighborhood = chosenNeighborhood(parameters.neighborhood, current.solution, instance);
 
             jumped = false;
         }
 
         if (neighborhood.empty())
         {
-            bool restored = restoreCheckpoint(checkpointStack, instance, current, tabuList, tabuIteration, neighborhood);
+            bool restored = restoreCheckpoint(checkpointStack, instance, current, tabuList, tabuIteration, neighborhood, solver);
 
             if (!restored)
                 break;
@@ -307,11 +395,10 @@ double TabuSearch(Instance &instance, Parameters &parameters, std::vector<int> &
 
         bool timeExpired = false;
 
-        bool movementFound = chooseBestCandidate(neighborhood, tabuList, instance, best, tabuIteration, chosenIndex, chosenOp1,
-                                                 chosenOp2, bestCandidate, searchStart, parameters.maxMilliSeconds, timeExpired);
+        bool movementFound = chooseBestCandidate(neighborhood, tabuList, instance, tabuIteration, chosenIndex, chosenOp1,
+                                                 chosenOp2, bestCandidate, searchStart, parameters.maxMilliSeconds, timeExpired,
+                                                 solver);
 
-        // O tempo acabou durante a avaliação
-        // da vizinhança.
         if (timeExpired)
         {
             stopByTime = true;
@@ -337,7 +424,8 @@ double TabuSearch(Instance &instance, Parameters &parameters, std::vector<int> &
                 checkpointStack.updateRemainingMoves(emptyRemaining);
             }
 
-            bool restored = restoreCheckpoint(checkpointStack, instance, current, tabuList, tabuIteration, neighborhood);
+            bool restored = restoreCheckpoint(checkpointStack, instance, current, tabuList, tabuIteration, neighborhood,
+                                              solver);
 
             if (!restored)
             {
@@ -347,8 +435,9 @@ double TabuSearch(Instance &instance, Parameters &parameters, std::vector<int> &
 
             timeExpired = false;
 
-            movementFound = chooseBestCandidate(neighborhood, tabuList, instance, best, tabuIteration, chosenIndex, chosenOp1, chosenOp2,
-                                                bestCandidate, searchStart, parameters.maxMilliSeconds, timeExpired);
+            movementFound = chooseBestCandidate(neighborhood, tabuList, instance, tabuIteration, chosenIndex,
+                                                chosenOp1, chosenOp2, bestCandidate, searchStart,
+                                                parameters.maxMilliSeconds, timeExpired, solver);
 
             if (timeExpired)
             {
@@ -393,15 +482,27 @@ double TabuSearch(Instance &instance, Parameters &parameters, std::vector<int> &
 
     changeMachines(best.solution, instance);
 
-    certificate = best.certificate;
+    cplexCount++;
 
-    criticalPredecessor = best.criticalPredecessor;
+    TimingResult finalTiming = solver.solveFull(best, instance);
 
-    startTimeJob = best.startTimeJob;
+    if (!finalTiming.feasible)
+    {
+        std::cerr << "Erro ao temporizar a melhor solucao final." << std::endl;
 
-    finalTimeJob = best.finalTimeJob;
+        return std::numeric_limits<double>::infinity();
+    }
 
-    bestMakespan = best.makespan;
+    startTimeJob = finalTiming.startTimeJob;
+
+    finalTimeJob = finalTiming.finalTimeJob;
+
+    bestMakespan = finalTiming.makespan;
+
+    std::cout << "Evaluations: " << evaluationCount << std::endl;
+    std::cout << "CPLEX Calls: " << cplexCount << std::endl;
+
+    certificate = buildCertificate(instance, finalTiming);
 
     return best.cost;
 }

@@ -1,54 +1,70 @@
 #include "../include/timingSolver.hpp"
+#include "../include/tabuSearch.hpp"
 
-#include <ilcplex/ilocplex.h>
 #include <limits>
 #include <iostream>
-ILOSTLBEGIN
 
-bool findFirstAndLastOperations(std::vector<int> &firstOp, std::vector<int> &lastOp, const Instance &instance)
+TimingSolver::TimingSolver(const Instance &instance)
+    : model(env),
+      S(env, instance.operationsList.size(), 0.0, IloInfinity, ILOFLOAT),
+      earliness(env, instance.jobsList.size(), 0.0, IloInfinity, ILOFLOAT),
+      tardiness(env, instance.jobsList.size(), 0.0, IloInfinity, ILOFLOAT),
+      objective(env),
+      cplex(env),
+      machineConstraints(env)
 {
-    int sizeOp = instance.operationsList.size();
-    int sizeJob = instance.jobsList.size();
+    size_t sizeJob = instance.jobsList.size();
+
+    lastOp.resize(sizeJob, -1);
+    firstOp.resize(sizeJob, -1);
 
     for (size_t i = 0; i < sizeJob; i++)
     {
-        for (size_t j = 0; j < sizeOp; j++)
+        if (instance.jobOperation[i].empty())
         {
-            int index = instance.operationsList[j].id_job;
-
-            if (index == i)
-            {
-                if (instance.predecessorJob[instance.operationsList[j].id_operation] == -1)
-                {
-                    firstOp[i] = instance.operationsList[j].id_operation;
-                }
-                if (instance.successorJob[instance.operationsList[j].id_operation] == -1)
-                {
-                    lastOp[i] = instance.operationsList[j].id_operation;
-                }
-            }
+            error = true;
+            return;
         }
-        if (firstOp[i] == -1 || lastOp[i] == -1)
-            return false;
+
+        firstOp[i] = instance.jobOperation[i].front();
+
+        lastOp[i] = instance.jobOperation[i].back();
     }
-    return true;
+
+    addJobPrecedenceConstraints(model, S, instance);
+    addEarlinessTardinessConstraints(model, S, instance, lastOp, earliness, tardiness);
+    buildObjectiveExpression(instance, earliness, tardiness, objective, S, lastOp, firstOp);
+
+    model.add(IloMinimize(env, objective));
+
+    cplex.setParam(IloCplex::Param::Threads, 1);
+    // cplex.setParam(IloCplex::Param::TimeLimit, 1);
+
+    cplex.setOut(env.getNullStream());
+    cplex.setWarning(env.getNullStream());
+
+    cplex.extract(model);
 }
 
-void addProcessingConstraints(IloModel &model, IloNumVarArray &C, IloNumVarArray &S, const Instance &instance)
+TimingSolver::~TimingSolver()
 {
-    int sizeOp = instance.operationsList.size();
-
-    for (size_t i = 0; i < sizeOp; i++)
-    {
-        double p = instance.processingTime[i];
-
-        model.add(C[i] == S[i] + p);
-    }
+    env.end();
 }
 
-void addJobPrecedenceConstraints(IloModel &model, IloNumVarArray &C, IloNumVarArray &S, const Instance &instance)
+void TimingSolver::clearMachineConstraints()
 {
-    int sizeOp = instance.operationsList.size();
+    if (machineConstraints.getSize() == 0)
+        return;
+
+    model.remove(machineConstraints);
+
+    machineConstraints.endElements();
+
+    machineConstraints.clear();
+}
+void TimingSolver::addJobPrecedenceConstraints(IloModel &model, IloNumVarArray &S, const Instance &instance)
+{
+    size_t sizeOp = instance.operationsList.size();
 
     for (size_t i = 0; i < sizeOp; i++)
     {
@@ -59,14 +75,16 @@ void addJobPrecedenceConstraints(IloModel &model, IloNumVarArray &C, IloNumVarAr
         }
         else
         {
-            model.add(S[i] >= C[instance.predecessorJob[i]]);
+            int predecessor = instance.predecessorJob[i];
+            model.add(S[i] >= S[predecessor] + instance.processingTime[predecessor]);
         }
     }
 }
 
-void addMachinePrecedenceConstraints(IloModel &model, IloNumVarArray &C, IloNumVarArray &S, const Instance &instance)
+void TimingSolver::addMachinePrecedenceConstraints(const Instance &instance)
 {
-    int sizeOp = instance.operationsList.size();
+    size_t sizeOp = instance.operationsList.size();
+
     for (size_t i = 0; i < sizeOp; i++)
     {
         int machine = instance.operationsList[i].id_machine;
@@ -80,7 +98,10 @@ void addMachinePrecedenceConstraints(IloModel &model, IloNumVarArray &C, IloNumV
             if (initialJob != -1 && initialJob != job)
             {
                 st = instance.setupMatrix[machine][initialJob][job];
-                model.add(S[i] >= st);
+
+                IloConstraint constraint = S[i] >= st;
+
+                machineConstraints.add(constraint);
             }
         }
 
@@ -89,26 +110,13 @@ void addMachinePrecedenceConstraints(IloModel &model, IloNumVarArray &C, IloNumV
             int predecessorOp = instance.predecessorMach[i];
             int predecessor = instance.operationsList[predecessorOp].id_job;
             st = instance.setupMatrix[machine][predecessor][job];
-            model.add(S[i] >= C[instance.predecessorMach[i]] + st);
+            IloConstraint constraint = S[i] >= S[predecessorOp] + instance.processingTime[predecessorOp] + st;
+
+            machineConstraints.add(constraint);
         }
     }
-}
 
-bool addFlowTimeConstraints(IloModel &model, IloNumVarArray &C, IloNumVarArray &S, const Instance &instance,
-                            IloNumVarArray &flowTime, std::vector<int> &lastOp, std::vector<int> &firstOp)
-{
-    int sizeJob = instance.jobsList.size();
-
-    for (size_t i = 0; i < sizeJob; i++)
-    {
-        if (lastOp[i] != -1 && firstOp[i] != -1)
-            model.add(flowTime[i] == C[lastOp[i]] - S[firstOp[i]]);
-        else
-        {
-            return false;
-        }
-    }
-    return true;
+    model.add(machineConstraints);
 }
 
 TimingResult makeFailedTimingResult()
@@ -123,21 +131,34 @@ TimingResult makeFailedTimingResult()
     return failed;
 }
 
-void addEarlinessTardinessConstraints(IloModel &model, IloNumVarArray &C, const Instance &instance,
-                                      std::vector<int> &lastOp, IloNumVarArray &earliness, IloNumVarArray &tardiness)
+CostResult makeFailedCostResult()
 {
-    int sizeJob = instance.jobsList.size();
+    CostResult failed;
+
+    failed.feasible = false;
+    failed.optimal = false;
+    failed.cost = std::numeric_limits<double>::infinity();
+
+    return failed;
+}
+
+void TimingSolver::addEarlinessTardinessConstraints(IloModel &model, IloNumVarArray &S, const Instance &instance,
+                                                    std::vector<int> &lastOp, IloNumVarArray &earliness, IloNumVarArray &tardiness)
+{
+    size_t sizeJob = instance.jobsList.size();
+
     for (size_t i = 0; i < sizeJob; i++)
     {
+        int last = lastOp[i];
         double dueDate = instance.jobsList[i].due_date;
-        model.add(dueDate == C[lastOp[i]] + earliness[i] - tardiness[i]);
+        model.add(dueDate == (S[last] + instance.processingTime[last]) + earliness[i] - tardiness[i]);
     }
 }
 
-void buildObjectiveExpression(const Instance &instance, IloNumVarArray &earliness, IloNumVarArray &tardiness,
-                              IloNumVarArray &flowTime, IloExpr &objective)
+void TimingSolver::buildObjectiveExpression(const Instance &instance, IloNumVarArray &earliness, IloNumVarArray &tardiness,
+                                            IloExpr &objective, IloNumVarArray &S, std::vector<int> &lastOp, std::vector<int> &firstOp)
 {
-    int sizeJob = instance.jobsList.size();
+    size_t sizeJob = instance.jobsList.size();
 
     for (size_t i = 0; i < sizeJob; i++)
     {
@@ -146,46 +167,38 @@ void buildObjectiveExpression(const Instance &instance, IloNumVarArray &earlines
         weight_t = instance.jobsList[i].tardiness_penalty;
         weight_ft = instance.jobsList[i].flow_time;
 
-        objective += ((weight_e * earliness[i]) + (weight_t * tardiness[i]) + (weight_ft * flowTime[i]));
+        int last = lastOp[i];
+        int first = firstOp[i];
+        double pt = instance.processingTime[last];
+        objective += ((weight_e * earliness[i]) + (weight_t * tardiness[i]) + (weight_ft * ((S[last] + pt) - S[first])));
     }
 }
 
-void extractTimingResult(IloNumVarArray &C, IloNumVarArray &S, const Instance &instance,
-                         IloNumVarArray &earliness, IloNumVarArray &tardiness, IloNumVarArray &flowTime,
-                         TimingResult &result, IloCplex &cplex, std::vector<int> &lastOp,
-                         std::vector<int> &firstOp)
+void extractTimingResult(IloNumVarArray &S, const Instance &instance, TimingResult &result, IloCplex &cplex,
+                         std::vector<int> &lastOp, std::vector<int> &firstOp)
 {
-    int sizeJob = instance.jobsList.size();
-    int sizeOp = instance.operationsList.size();
+    size_t sizeJob = instance.jobsList.size();
+    size_t sizeOp = instance.operationsList.size();
 
-    result.earliness.resize(sizeJob, 0);
-    result.tardiness.resize(sizeJob, 0);
-    result.flowTime.resize(sizeJob, 0);
     result.startTimeOp.resize(sizeOp, 0);
     result.finalTimeOp.resize(sizeOp, 0);
     result.finalTimeJob.resize(sizeJob, 0);
     result.startTimeJob.resize(sizeJob, 0);
 
-    for (size_t i = 0; i < sizeJob; i++)
-    {
-        result.earliness[i] = cplex.getValue(earliness[i]);
-        result.tardiness[i] = cplex.getValue(tardiness[i]);
-        result.flowTime[i] = cplex.getValue(flowTime[i]);
-    }
-
     for (size_t i = 0; i < sizeOp; i++)
     {
         result.startTimeOp[i] = cplex.getValue(S[i]);
-        result.finalTimeOp[i] = cplex.getValue(C[i]);
+        result.finalTimeOp[i] = result.startTimeOp[i] + instance.processingTime[i];
     }
 
     for (size_t i = 0; i < sizeJob; i++)
     {
-        double startTime = cplex.getValue(S[firstOp[i]]);
-        double finalTime = cplex.getValue(C[lastOp[i]]);
+        int first = firstOp[i];
+        int last = lastOp[i];
 
-        result.startTimeJob[i] = startTime;
-        result.finalTimeJob[i] = finalTime;
+        result.startTimeJob[i] = result.startTimeOp[first];
+
+        result.finalTimeJob[i] = result.finalTimeOp[last];
     }
 
     double makespan = 0.0;
@@ -201,61 +214,95 @@ void extractTimingResult(IloNumVarArray &C, IloNumVarArray &S, const Instance &i
     result.feasible = true;
 }
 
-TimingResult solveTime(const SolutionState &solutionState, Instance &instance)
+CostResult TimingSolver::solveCost(
+    const SolutionState &state,
+    Instance &instance)
+{
+    if (!state.feasible)
+    {
+        return makeFailedCostResult();
+    }
+
+    if (error)
+    {
+        return makeFailedCostResult();
+    }
+
+    CostResult result;
+
+    try
+    {
+        clearMachineConstraints();
+
+        addMachinePrecedenceConstraints(
+            instance);
+
+        bool solved =
+            cplex.solve();
+
+        if (!solved)
+        {
+            return makeFailedCostResult();
+        }
+
+        result.feasible = true;
+
+        result.optimal =
+            cplex.getStatus() ==
+            IloAlgorithm::Optimal;
+
+        result.cost =
+            cplex.getObjValue();
+    }
+    catch (IloException &e)
+    {
+        std::cerr
+            << "Concert/CPLEX Error: "
+            << e
+            << std::endl;
+
+        return makeFailedCostResult();
+    }
+    catch (const std::exception &e)
+    {
+        std::cerr
+            << "C++ Error: "
+            << e.what()
+            << std::endl;
+
+        return makeFailedCostResult();
+    }
+    catch (...)
+    {
+        std::cerr
+            << "Erro desconhecido no TimingSolver."
+            << std::endl;
+
+        return makeFailedCostResult();
+    }
+
+    return result;
+}
+
+TimingResult TimingSolver::solveFull(const SolutionState &solutionState, Instance &instance)
 {
     if (!solutionState.feasible)
     {
         return makeFailedTimingResult();
     }
 
-    changeMachines(solutionState.solution, instance);
-
-    size_t sizeJob = instance.jobsList.size();
-
-    std::vector<int> lastOp, firstOp;
-    lastOp.resize(sizeJob, -1);
-    firstOp.resize(sizeJob, -1);
-
-    if (!findFirstAndLastOperations(firstOp, lastOp, instance))
+    if (error)
     {
-
         return makeFailedTimingResult();
     }
 
-    IloEnv env;
     TimingResult result;
 
     try
     {
-        IloModel model(env);
+        clearMachineConstraints();
 
-        IloNumVarArray C(env, instance.operationsList.size(), 0.0, IloInfinity, ILOFLOAT);
-        IloNumVarArray S(env, instance.operationsList.size(), 0.0, IloInfinity, ILOFLOAT);
-
-        IloNumVarArray earliness(env, instance.jobsList.size(), 0.0, IloInfinity, ILOFLOAT);
-        IloNumVarArray tardiness(env, instance.jobsList.size(), 0.0, IloInfinity, ILOFLOAT);
-        IloNumVarArray flowTime(env, instance.jobsList.size(), 0.0, IloInfinity, ILOFLOAT);
-
-        IloExpr objective(env);
-
-        addProcessingConstraints(model, C, S, instance);
-        addJobPrecedenceConstraints(model, C, S, instance);
-        addMachinePrecedenceConstraints(model, C, S, instance);
-        addFlowTimeConstraints(model, C, S, instance, flowTime, lastOp, firstOp);
-        addEarlinessTardinessConstraints(model, C, instance, lastOp, earliness, tardiness);
-        buildObjectiveExpression(instance, earliness, tardiness, flowTime, objective);
-
-        model.add(IloMinimize(env, objective));
-
-        IloCplex cplex(env);
-
-        cplex.setParam(IloCplex::Param::Threads, 1);
-        // cplex.setParam(IloCplex::Param::TimeLimit, 1);
-
-        // cplex.setOut(env.getNullStream());
-        // cplex.setWarning(env.getNullStream());
-
-        cplex.extract(model);
+        addMachinePrecedenceConstraints(instance);
 
         bool solved = cplex.solve();
 
@@ -277,8 +324,8 @@ TimingResult solveTime(const SolutionState &solutionState, Instance &instance)
                 std::cout << "O resultado não é ótimo! Status: "
                           << status << std::endl;
             }
-            extractTimingResult(C, S, instance, earliness, tardiness, flowTime, result, cplex, lastOp, firstOp);
-            cplex.exportModel("timing.lp");
+            extractTimingResult(S, instance, result, cplex, lastOp, firstOp);
+            // cplex.exportModel("timing.lp");
         }
     }
     catch (IloException &e)
@@ -300,8 +347,6 @@ TimingResult solveTime(const SolutionState &solutionState, Instance &instance)
 
         result = makeFailedTimingResult();
     }
-
-    env.end();
 
     return result;
 }

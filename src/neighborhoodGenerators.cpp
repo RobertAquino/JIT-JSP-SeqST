@@ -1,6 +1,7 @@
 #include "../include/neighborhoodGenerators.hpp"
 
 #include <stdexcept>
+#include <queue>
 
 void createSPT(Instance &instance, Solution &solution, int n_mach)
 {
@@ -69,27 +70,24 @@ std::vector<Movement> adjacentNeighborhood(Solution &current)
     }
     return neighbors;
 }
-
-std::vector<int> generateCriticalPath(std::vector<double> &final_time_job, std::vector<int> &criticalPredecessor, Instance &instance,
-                                      double &makespan)
+std::vector<int> generateCriticalPath(Instance &instance)
 {
-    std::vector<int> criticalPath;
-    int index_last_job = -1;
+    ASAPResult result = calculateASAP(instance);
 
-    for (size_t i = 0; i < final_time_job.size(); i++)
+    std::vector<int> criticalPath;
+
+    if (!result.feasible || result.finalTimeJob.empty())
     {
-        if (std::abs(final_time_job[i] - makespan) < 1e-9)
-        {
-            index_last_job = i;
-        }
+        return criticalPath;
     }
 
-    if (index_last_job == -1)
+    int index_last_job = -1;
+
+    for (size_t i = 0; i < result.finalTimeJob.size(); i++)
     {
-        for (size_t i = 0; i < final_time_job.size(); i++)
+        if (std::abs(result.finalTimeJob[i] - result.makespan) < 1e-9)
         {
-            if (index_last_job == -1 || final_time_job[i] > final_time_job[index_last_job])
-                index_last_job = i;
+            index_last_job = i;
         }
     }
 
@@ -98,7 +96,7 @@ std::vector<int> generateCriticalPath(std::vector<double> &final_time_job, std::
     while (current != -1)
     {
         criticalPath.push_back(current);
-        current = criticalPredecessor[current];
+        current = result.criticalPredecessor[current];
     }
 
     return criticalPath;

@@ -1,0 +1,266 @@
+g++ -std=c++17 -Wall -Wextra -O0 -g -Iinclude -I/opt/ibm/ILOG/CPLEX_Studio222/cplex/include -I/opt/ibm/ILOG/CPLEX_Studio222/concert/include -MMD -MP -c main.cpp -o build/main.o
+g++ build/main.o build/src/ASAP.o build/src/checkpointStack.o build/src/csvUtils.o build/src/cycleDetector.o build/src/initialSetupParser.o build/src/instance.o build/src/jobParser.o build/src/neighborhoodGenerators.o build/src/operationsParser.o build/src/setupParser.o build/src/tabuList.o build/src/tabuSearch.o build/src/timingSolver.o build/src/valuer.o -o bin/tabu_scheduler -L/opt/ibm/ILOG/CPLEX_Studio222/cplex/lib/x86-64_linux/static_pic -L/opt/ibm/ILOG/CPLEX_Studio222/concert/lib/x86-64_linux/static_pic -lilocplex -lconcert -lcplex -lm -lpthread -ldl
+./bin/tabu_scheduler 
+============================================
+TESTE CRITICAL HIBRIDA - 20s
+ASAP EM TODOS + CPLEX NO ESCOLHIDO
+============================================
+Instancias: 80
+
+Tempo por instancia: 20 s
+
+Neighborhood: Critical Path (2)
+Tabu tenure: 5
+Cycle window: 6
+Cycle repeats: 3
+Checkpoint stack: 20
+============================================
+
+[1/80] I-10x10-equal-loose-0 | limit=20 s ... Evaluations: 145491
+CPLEX Calls: 22979
+cost=302.19 | makespan=442.00 | time=20.0017 s
+[2/80] I-10x10-equal-loose-1 | limit=20.0000 s ... Evaluations: 148240
+CPLEX Calls: 25312
+cost=255.04 | makespan=425.00 | time=20.0012 s
+[3/80] I-10x10-equal-loose-2 | limit=20.0000 s ... Evaluations: 143175
+CPLEX Calls: 21772
+cost=357.23 | makespan=444.00 | time=20.0018 s
+[4/80] I-10x10-equal-loose-3 | limit=20.0000 s ... Evaluations: 168417
+CPLEX Calls: 24024
+cost=204.93 | makespan=482.00 | time=20.0012 s
+[5/80] I-10x10-equal-loose-4 | limit=20.0000 s ... Evaluations: 93080
+CPLEX Calls: 22064
+cost=304.21 | makespan=428.00 | time=20.0015 s
+[6/80] I-10x10-equal-tight-0 | limit=20.0000 s ... Evaluations: 203889
+CPLEX Calls: 20676
+cost=685.38 | makespan=469.00 | time=20.0014 s
+[7/80] I-10x10-equal-tight-1 | limit=20.0000 s ... Evaluations: 127381
+CPLEX Calls: 20586
+cost=466.56 | makespan=430.00 | time=20.0015 s
+[8/80] I-10x10-equal-tight-2 | limit=20.0000 s ... Evaluations: 128681
+CPLEX Calls: 22575
+cost=348.38 | makespan=405.00 | time=20.0017 s
+[9/80] I-10x10-equal-tight-3 | limit=20.0000 s ... Evaluations: 127806
+CPLEX Calls: 24947
+cost=185.33 | makespan=377.80 | time=20.0013 s
+[10/80] I-10x10-equal-tight-4 | limit=20.0000 s ... Evaluations: 150575
+CPLEX Calls: 23860
+cost=345.79 | makespan=445.00 | time=20.0014 s
+[11/80] I-10x10-tard-loose-0 | limit=20.0000 s ... Evaluations: 151314
+CPLEX Calls: 20998
+cost=159.09 | makespan=452.50 | time=20.0011 s
+[12/80] I-10x10-tard-loose-1 | limit=20.0000 s ... Evaluations: 126602
+CPLEX Calls: 20907
+cost=140.33 | makespan=394.50 | time=20.0013 s
+[13/80] I-10x10-tard-loose-2 | limit=20.0000 s ... Evaluations: 156447
+CPLEX Calls: 27968
+cost=184.18 | makespan=396.00 | time=20.0012 s
+[14/80] I-10x10-tard-loose-3 | limit=20.0000 s ... Evaluations: 105749
+CPLEX Calls: 22356
+cost=338.61 | makespan=451.50 | time=20.0017 s
+[15/80] I-10x10-tard-loose-4 | limit=20.0000 s ... Evaluations: 150071
+CPLEX Calls: 23657
+cost=185.75 | makespan=403.50 | time=20.0016 s
+[16/80] I-10x10-tard-tight-0 | limit=20.0000 s ... Evaluations: 119487
+CPLEX Calls: 22456
+cost=372.97 | makespan=417.30 | time=20.0015 s
+[17/80] I-10x10-tard-tight-1 | limit=20.0000 s ... Evaluations: 168532
+CPLEX Calls: 24606
+cost=202.59 | makespan=396.00 | time=20.0017 s
+[18/80] I-10x10-tard-tight-2 | limit=20.0000 s ... Evaluations: 150004
+CPLEX Calls: 21786
+cost=446.23 | makespan=391.00 | time=20.0012 s
+[19/80] I-10x10-tard-tight-3 | limit=20.0000 s ... Evaluations: 104485
+CPLEX Calls: 23214
+cost=628.10 | makespan=380.00 | time=20.0012 s
+[20/80] I-10x10-tard-tight-4 | limit=20.0000 s ... Evaluations: 171353
+CPLEX Calls: 21485
+cost=604.66 | makespan=431.00 | time=20.0012 s
+[21/80] I-20x10-equal-loose-0 | limit=20.0000 s ... Evaluations: 103877
+CPLEX Calls: 9060
+cost=1483.32 | makespan=596.00 | time=20.0024 s
+[22/80] I-20x10-equal-loose-1 | limit=20.0000 s ... Evaluations: 154724
+CPLEX Calls: 8372
+cost=3648.78 | makespan=832.00 | time=20.0025 s
+[23/80] I-20x10-equal-loose-2 | limit=20.0000 s ... Evaluations: 145100
+CPLEX Calls: 8653
+cost=2223.14 | makespan=711.00 | time=20.0037 s
+[24/80] I-20x10-equal-loose-3 | limit=20.0000 s ... Evaluations: 98480
+CPLEX Calls: 8228
+cost=3338.83 | makespan=691.00 | time=20.0044 s
+[25/80] I-20x10-equal-loose-4 | limit=20.0000 s ... Evaluations: 89317
+CPLEX Calls: 7157
+cost=2292.44 | makespan=665.00 | time=20.0032 s
+[26/80] I-20x10-equal-tight-0 | limit=20.0000 s ... Evaluations: 89322
+CPLEX Calls: 7964
+cost=2576.57 | makespan=666.00 | time=20.0058 s
+[27/80] I-20x10-equal-tight-1 | limit=20.0000 s ... Evaluations: 98832
+CPLEX Calls: 7475
+cost=3176.55 | makespan=710.00 | time=20.0036 s
+[28/80] I-20x10-equal-tight-2 | limit=20.0000 s ... Evaluations: 81606
+CPLEX Calls: 8765
+cost=4217.51 | makespan=734.00 | time=20.0033 s
+[29/80] I-20x10-equal-tight-3 | limit=20.0000 s ... Evaluations: 86232
+CPLEX Calls: 8065
+cost=3002.72 | makespan=683.00 | time=20.0036 s
+[30/80] I-20x10-equal-tight-4 | limit=20.0000 s ... Evaluations: 147615
+CPLEX Calls: 7255
+cost=3979.28 | makespan=868.00 | time=20.0026 s
+[31/80] I-20x10-tard-loose-0 | limit=20.0000 s ... Evaluations: 110635
+CPLEX Calls: 8093
+cost=1736.49 | makespan=654.00 | time=20.0023 s
+[32/80] I-20x10-tard-loose-1 | limit=20.0000 s ... Evaluations: 105400
+CPLEX Calls: 7572
+cost=1890.08 | makespan=746.00 | time=20.0049 s
+[33/80] I-20x10-tard-loose-2 | limit=20.0000 s ... Evaluations: 112088
+CPLEX Calls: 7935
+cost=3286.25 | makespan=719.00 | time=20.0034 s
+[34/80] I-20x10-tard-loose-3 | limit=20.0000 s ... Evaluations: 137600
+CPLEX Calls: 6532
+cost=3119.46 | makespan=833.00 | time=20.0052 s
+[35/80] I-20x10-tard-loose-4 | limit=20.0000 s ... Evaluations: 118373
+CPLEX Calls: 8718
+cost=2550.02 | makespan=822.00 | time=20.0046 s
+[36/80] I-20x10-tard-tight-0 | limit=20.0000 s ... Evaluations: 112662
+CPLEX Calls: 7178
+cost=2842.87 | makespan=791.00 | time=20.0034 s
+[37/80] I-20x10-tard-tight-1 | limit=20.0000 s ... Evaluations: 144278
+CPLEX Calls: 7156
+cost=4263.38 | makespan=883.00 | time=20.0027 s
+[38/80] I-20x10-tard-tight-2 | limit=20.0000 s ... Evaluations: 109063
+CPLEX Calls: 7967
+cost=2933.68 | makespan=752.00 | time=20.0024 s
+[39/80] I-20x10-tard-tight-3 | limit=20.0000 s ... Evaluations: 114724
+CPLEX Calls: 7837
+cost=3007.63 | makespan=688.00 | time=20.0028 s
+[40/80] I-20x10-tard-tight-4 | limit=20.0000 s ... Evaluations: 121977
+CPLEX Calls: 7748
+cost=3116.99 | makespan=709.00 | time=20.0036 s
+[41/80] I-50x10-equal-loose-0 | limit=20.0000 s ... Evaluations: 77701
+CPLEX Calls: 1706
+cost=28639.04 | makespan=2029.00 | time=20.0103 s
+[42/80] I-50x10-equal-loose-1 | limit=20.0000 s ... Evaluations: 77075
+CPLEX Calls: 1784
+cost=29351.05 | makespan=1910.00 | time=20.0173 s
+[43/80] I-50x10-equal-loose-2 | limit=20.0000 s ... Evaluations: 82694
+CPLEX Calls: 1617
+cost=31450.83 | makespan=1949.00 | time=20.0120 s
+[44/80] I-50x10-equal-loose-3 | limit=20.0000 s ... Evaluations: 74852
+CPLEX Calls: 1784
+cost=31038.98 | makespan=1935.00 | time=20.0098 s
+[45/80] I-50x10-equal-loose-4 | limit=20.0000 s ... Evaluations: 77511
+CPLEX Calls: 1904
+cost=29992.95 | makespan=1979.00 | time=20.0110 s
+[46/80] I-50x10-equal-tight-0 | limit=20.0000 s ... Evaluations: 80526
+CPLEX Calls: 1820
+cost=28825.32 | makespan=1779.00 | time=20.0094 s
+[47/80] I-50x10-equal-tight-1 | limit=20.0000 s ... Evaluations: 82335
+CPLEX Calls: 1722
+cost=32512.81 | makespan=1860.00 | time=20.0113 s
+[48/80] I-50x10-equal-tight-2 | limit=20.0000 s ... Evaluations: 86752
+CPLEX Calls: 1761
+cost=27979.32 | makespan=2185.00 | time=20.0114 s
+[49/80] I-50x10-equal-tight-3 | limit=20.0000 s ... Evaluations: 78478
+CPLEX Calls: 1833
+cost=31774.28 | makespan=1949.00 | time=20.0095 s
+[50/80] I-50x10-equal-tight-4 | limit=20.0000 s ... Evaluations: 76007
+CPLEX Calls: 1834
+cost=28804.98 | makespan=1995.00 | time=20.0104 s
+[51/80] I-50x10-tard-loose-0 | limit=20.0000 s ... Evaluations: 77445
+CPLEX Calls: 1742
+cost=37840.03 | makespan=2209.00 | time=20.0140 s
+[52/80] I-50x10-tard-loose-1 | limit=20.0000 s ... Evaluations: 75143
+CPLEX Calls: 1699
+cost=39293.07 | makespan=2330.00 | time=20.0114 s
+[53/80] I-50x10-tard-loose-2 | limit=20.0000 s ... Evaluations: 70611
+CPLEX Calls: 1895
+cost=33640.25 | makespan=1914.00 | time=20.0096 s
+[54/80] I-50x10-tard-loose-3 | limit=20.0000 s ... Evaluations: 73142
+CPLEX Calls: 1771
+cost=28357.03 | makespan=1988.00 | time=20.0107 s
+[55/80] I-50x10-tard-loose-4 | limit=20.0000 s ... Evaluations: 78156
+CPLEX Calls: 1730
+cost=29161.79 | makespan=1731.00 | time=20.0093 s
+[56/80] I-50x10-tard-tight-0 | limit=20.0000 s ... Evaluations: 76181
+CPLEX Calls: 1737
+cost=31200.05 | makespan=1773.00 | time=20.0155 s
+[57/80] I-50x10-tard-tight-1 | limit=20.0000 s ... Evaluations: 85822
+CPLEX Calls: 1860
+cost=35683.08 | makespan=2316.00 | time=20.0092 s
+[58/80] I-50x10-tard-tight-2 | limit=20.0000 s ... Evaluations: 85192
+CPLEX Calls: 1685
+cost=31591.63 | makespan=2092.00 | time=20.0171 s
+[59/80] I-50x10-tard-tight-3 | limit=20.0000 s ... Evaluations: 76284
+CPLEX Calls: 1921
+cost=34786.58 | makespan=2254.00 | time=20.0095 s
+[60/80] I-50x10-tard-tight-4 | limit=20.0000 s ... Evaluations: 77448
+CPLEX Calls: 1727
+cost=36172.99 | makespan=2191.00 | time=20.0195 s
+[61/80] I-5x10-equal-loose-0 | limit=20.0000 s ... Evaluations: 5932
+CPLEX Calls: 2140
+cost=90.57 | makespan=407.00 | time=0.7437 s
+[62/80] I-5x10-equal-loose-1 | limit=20.0000 s ... Evaluations: 5008
+CPLEX Calls: 2197
+cost=74.62 | makespan=393.50 | time=0.7408 s
+[63/80] I-5x10-equal-loose-2 | limit=20.0000 s ... Evaluations: 10849
+CPLEX Calls: 3423
+cost=51.62 | makespan=393.50 | time=1.2157 s
+[64/80] I-5x10-equal-loose-3 | limit=20.0000 s ... Evaluations: 135517
+CPLEX Calls: 53741
+cost=58.03 | makespan=368.00 | time=20.0009 s
+[65/80] I-5x10-equal-loose-4 | limit=20.0000 s ... Evaluations: 172712
+CPLEX Calls: 50712
+cost=82.11 | makespan=392.50 | time=20.0008 s
+[66/80] I-5x10-equal-tight-0 | limit=20.0000 s ... Evaluations: 5472
+CPLEX Calls: 1921
+cost=84.24 | makespan=353.20 | time=0.8105 s
+[67/80] I-5x10-equal-tight-1 | limit=20.0000 s ... Evaluations: 12905
+CPLEX Calls: 4674
+cost=49.55 | makespan=341.80 | time=1.8036 s
+[68/80] I-5x10-equal-tight-2 | limit=20.0000 s ... Evaluations: 127440
+CPLEX Calls: 53803
+cost=40.71 | makespan=342.80 | time=20.0005 s
+[69/80] I-5x10-equal-tight-3 | limit=20.0000 s ... Evaluations: 6596
+CPLEX Calls: 2360
+cost=65.27 | makespan=359.00 | time=0.9221 s
+[70/80] I-5x10-equal-tight-4 | limit=20.0000 s ... Evaluations: 156876
+CPLEX Calls: 49912
+cost=98.46 | makespan=340.80 | time=20.0006 s
+[71/80] I-5x10-tard-loose-0 | limit=20.0000 s ... Evaluations: 6059
+CPLEX Calls: 2089
+cost=46.06 | makespan=347.50 | time=0.7090 s
+[72/80] I-5x10-tard-loose-1 | limit=20.0000 s ... Evaluations: 195915
+CPLEX Calls: 49871
+cost=84.16 | makespan=371.00 | time=20.0009 s
+[73/80] I-5x10-tard-loose-2 | limit=20.0000 s ... Evaluations: 216234
+CPLEX Calls: 52970
+cost=67.13 | makespan=432.50 | time=20.0006 s
+[74/80] I-5x10-tard-loose-3 | limit=20.0000 s ... Evaluations: 191021
+CPLEX Calls: 55648
+cost=44.93 | makespan=369.00 | time=20.0007 s
+[75/80] I-5x10-tard-loose-4 | limit=20.0000 s ... Evaluations: 9554
+CPLEX Calls: 3252
+cost=57.61 | makespan=393.50 | time=1.1746 s
+[76/80] I-5x10-tard-tight-0 | limit=20.0000 s ... Evaluations: 7509
+CPLEX Calls: 2666
+cost=75.75 | makespan=383.90 | time=0.9919 s
+[77/80] I-5x10-tard-tight-1 | limit=20.0000 s ... Evaluations: 3057
+CPLEX Calls: 1275
+cost=43.36 | makespan=384.20 | time=0.4241 s
+[78/80] I-5x10-tard-tight-2 | limit=20.0000 s ... Evaluations: 12215
+CPLEX Calls: 4544
+cost=65.74 | makespan=345.60 | time=1.5385 s
+[79/80] I-5x10-tard-tight-3 | limit=20.0000 s ... Evaluations: 176272
+CPLEX Calls: 50850
+cost=55.32 | makespan=335.30 | time=20.0009 s
+[80/80] I-5x10-tard-tight-4 | limit=20.0000 s ... Evaluations: 3793
+CPLEX Calls: 1539
+cost=58.51 | makespan=362.60 | time=0.5624 s
+
+============================================
+TESTE FINALIZADO
+============================================
+Arquivo: critical_hybrid_20s_results.csv
+Tempo total: 1373.16 s
+Tempo total: 0.38 h
+============================================

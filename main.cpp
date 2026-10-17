@@ -15,17 +15,45 @@
 
 namespace fs = std::filesystem;
 
-InstancePaths buildInstancePaths(const fs::path &instanceDirectory)
+// ============================================================
+// Tempo do experimento
+// ============================================================
+//
+// Todas as instancias -> 20 segundos
+//
+
+constexpr long TIME_LIMIT_MS = 20'000;
+
+// ============================================================
+// Caminhos da instância
+// ============================================================
+
+InstancePaths buildInstancePaths(
+    const fs::path &instanceDirectory)
 {
     InstancePaths paths;
-    paths.operationPath = (instanceDirectory / "operations.csv").string();
-    paths.jobPath = (instanceDirectory / "jobs.csv").string();
-    paths.setupPath = (instanceDirectory / "setup.csv").string();
-    paths.initialSetupPath = (instanceDirectory / "initial_setup.csv").string();
+
+    paths.operationPath =
+        (instanceDirectory / "operations.csv").string();
+
+    paths.jobPath =
+        (instanceDirectory / "jobs.csv").string();
+
+    paths.setupPath =
+        (instanceDirectory / "setup.csv").string();
+
+    paths.initialSetupPath =
+        (instanceDirectory / "initial_setup.csv").string();
+
     return paths;
 }
 
-bool isInstanceDirectory(const fs::path &directory)
+// ============================================================
+// Verifica se uma pasta realmente contém uma instância
+// ============================================================
+
+bool isInstanceDirectory(
+    const fs::path &directory)
 {
     if (!fs::is_directory(directory))
         return false;
@@ -36,66 +64,109 @@ bool isInstanceDirectory(const fs::path &directory)
            fs::exists(directory / "initial_setup.csv");
 }
 
-Parameters buildCriticalParameters()
+// ============================================================
+// Limite de tempo
+// ============================================================
+
+long getTimeLimit(
+    const std::string &instanceName)
+{
+    (void)instanceName;
+
+    return TIME_LIMIT_MS;
+}
+
+// ============================================================
+// Parâmetros da Adjacent híbrida
+// ============================================================
+
+Parameters buildAdjacentParameters(
+    long timeLimitMs)
 {
     Parameters parameters;
 
-    parameters.neighborhood = 2; // Critical Path
+    // =====================================
+    // Vizinhança Adjacent
+    // =====================================
+
+    parameters.neighborhood = 1;
+
+    // Mantemos 5 para a comparação ser
+    // diretamente comparável com a Critical híbrida.
     parameters.tabuTenure = 5;
 
     parameters.cycleWindow = 6;
     parameters.cycleRepeats = 3;
+
     parameters.checkpointStackSize = 20;
 
-    parameters.iterationsWithoutImprovement = 555000;
-    parameters.maxMilliSeconds = 120000;
+    parameters.iterationsWithoutImprovement =
+        555000;
+
+    parameters.maxMilliSeconds =
+        timeLimitMs;
 
     return parameters;
 }
 
-double runCritical(
+// ============================================================
+// Executa UMA instância
+// ============================================================
+
+double runAdjacent(
     const fs::path &instanceDirectory,
     double &bestMakespan,
-    double &executionTime)
+    double &executionTime,
+    long timeLimitMs)
 {
     Instance instance;
 
     InstancePaths paths =
-        buildInstancePaths(instanceDirectory);
+        buildInstancePaths(
+            instanceDirectory);
 
     instance.initializeInstance(paths);
 
     int machineCount =
-        static_cast<int>(instance.machOperation.size());
+        static_cast<int>(
+            instance.machOperation.size());
 
     Parameters parameters =
-        buildCriticalParameters();
+        buildAdjacentParameters(
+            timeLimitMs);
 
-    std::vector<int> criticalPredecessor;
     std::vector<double> finalTimeJob;
     std::vector<double> startTimeJob;
+
     std::vector<ValidationOp> certificate;
 
-    auto start = std::chrono::steady_clock::now();
+    auto start =
+        std::chrono::steady_clock::now();
 
     double cost =
         TabuSearch(
             instance,
             parameters,
-            criticalPredecessor,
-            finalTimeJob,
             machineCount,
             certificate,
             startTimeJob,
-            bestMakespan);
+            bestMakespan,
+            finalTimeJob);
 
-    auto end = std::chrono::steady_clock::now();
+    auto end =
+        std::chrono::steady_clock::now();
 
     executionTime =
-        std::chrono::duration<double>(end - start).count();
+        std::chrono::duration<double>(
+            end - start)
+            .count();
 
     return cost;
 }
+
+// ============================================================
+// Busca todas as 80 instâncias
+// ============================================================
 
 std::vector<fs::path> findInstances(
     const fs::path &dataDirectory)
@@ -109,29 +180,40 @@ std::vector<fs::path> findInstances(
             continue;
 
         std::string name =
-            entry.path().filename().string();
+            entry.path()
+                .filename()
+                .string();
 
         if (name.rfind("I-", 0) != 0)
             continue;
 
-        if (!isInstanceDirectory(entry.path()))
+        if (!isInstanceDirectory(
+                entry.path()))
+        {
             continue;
+        }
 
-        instances.push_back(entry.path());
+        instances.push_back(
+            entry.path());
     }
 
-    std::sort(instances.begin(), instances.end());
+    std::sort(
+        instances.begin(),
+        instances.end());
 
     return instances;
 }
 
-int main(int argc, char *argv[])
+// ============================================================
+// MAIN
+// ============================================================
+
+int main(
+    int argc,
+    char *argv[])
 {
     try
     {
-        // Por padrão usa ./data.
-        // Também permite:
-        // ./bin/tabu_scheduler data_antiga
         fs::path dataDirectory =
             (argc > 1)
                 ? fs::path(argv[1])
@@ -148,7 +230,8 @@ int main(int argc, char *argv[])
         }
 
         std::vector<fs::path> instances =
-            findInstances(dataDirectory);
+            findInstances(
+                dataDirectory);
 
         if (instances.empty())
         {
@@ -160,28 +243,57 @@ int main(int argc, char *argv[])
             return 1;
         }
 
-        std::ofstream output("critical_results_120s.csv");
+        // ====================================================
+        // CSV
+        // ====================================================
+
+        std::ofstream output(
+            "adjacent_hybrid_20s_results.csv");
 
         if (!output.is_open())
         {
             std::cerr
-                << "Nao foi possivel criar critical_results.csv\n";
+                << "Nao foi possivel criar "
+                   "adjacent_hybrid_20s_results.csv\n";
 
             return 1;
         }
 
-        // Arquivo propositalmente simples:
-        // apenas nome da instancia + custo Critical.
-        output << "Instance,Tabu_Critical_Cost\n";
+        output
+            << "Instance,"
+            << "Adjacent_Hybrid_Cost,"
+            << "Best_Makespan,"
+            << "Time_Limit_Seconds,"
+            << "Actual_Time_Seconds\n";
+
         output.flush();
 
+        // ====================================================
+        // Informações do experimento
+        // ====================================================
+
         std::cout
-            << "Encontradas "
+            << "============================================\n"
+            << "TESTE ADJACENT HIBRIDA - 20s\n"
+            << "ASAP EM TODOS + CPLEX NO ESCOLHIDO\n"
+            << "============================================\n"
+            << "Instancias: "
             << instances.size()
-            << " instancias.\n\n";
+            << "\n\n"
+            << "Tempo por instancia: 20 s\n\n"
+            << "Neighborhood: Adjacent (1)\n"
+            << "Tabu tenure: 5\n"
+            << "Cycle window: 6\n"
+            << "Cycle repeats: 3\n"
+            << "Checkpoint stack: 20\n"
+            << "============================================\n\n";
 
         auto totalStart =
             std::chrono::steady_clock::now();
+
+        // ====================================================
+        // Executa todas as instâncias
+        // ====================================================
 
         for (std::size_t i = 0;
              i < instances.size();
@@ -191,7 +303,16 @@ int main(int argc, char *argv[])
                 instances[i];
 
             std::string instanceName =
-                instanceDirectory.filename().string();
+                instanceDirectory
+                    .filename()
+                    .string();
+
+            long timeLimitMs =
+                getTimeLimit(
+                    instanceName);
+
+            double timeLimitSeconds =
+                timeLimitMs / 1000.0;
 
             std::cout
                 << "["
@@ -200,19 +321,29 @@ int main(int argc, char *argv[])
                 << instances.size()
                 << "] "
                 << instanceName
-                << " ... "
+                << " | limit="
+                << timeLimitSeconds
+                << " s ... "
                 << std::flush;
 
             try
             {
-                double bestMakespan = 0.0;
-                double executionTime = 0.0;
+                double bestMakespan =
+                    0.0;
+
+                double executionTime =
+                    0.0;
 
                 double cost =
-                    runCritical(
+                    runAdjacent(
                         instanceDirectory,
                         bestMakespan,
-                        executionTime);
+                        executionTime,
+                        timeLimitMs);
+
+                // ============================================
+                // CSV
+                // ============================================
 
                 output
                     << instanceName
@@ -220,17 +351,28 @@ int main(int argc, char *argv[])
                     << std::fixed
                     << std::setprecision(6)
                     << cost
+                    << ","
+                    << bestMakespan
+                    << ","
+                    << timeLimitSeconds
+                    << ","
+                    << executionTime
                     << '\n';
 
-                // Salva cada linha imediatamente.
                 output.flush();
+
+                // ============================================
+                // Terminal
+                // ============================================
 
                 std::cout
                     << "cost="
                     << std::fixed
                     << std::setprecision(2)
                     << cost
-                    << " | "
+                    << " | makespan="
+                    << bestMakespan
+                    << " | time="
                     << std::setprecision(4)
                     << executionTime
                     << " s\n";
@@ -239,18 +381,41 @@ int main(int argc, char *argv[])
             {
                 output
                     << instanceName
+                    << ",ERROR,ERROR,"
+                    << timeLimitSeconds
                     << ",ERROR\n";
 
                 output.flush();
 
                 std::cerr
-                    << "ERROR: "
+                    << "\nERROR em "
+                    << instanceName
+                    << ": "
                     << error.what()
+                    << '\n';
+            }
+            catch (...)
+            {
+                output
+                    << instanceName
+                    << ",ERROR,ERROR,"
+                    << timeLimitSeconds
+                    << ",ERROR\n";
+
+                output.flush();
+
+                std::cerr
+                    << "\nERRO desconhecido em "
+                    << instanceName
                     << '\n';
             }
         }
 
         output.close();
+
+        // ====================================================
+        // Tempo total
+        // ====================================================
 
         auto totalEnd =
             std::chrono::steady_clock::now();
@@ -264,12 +429,15 @@ int main(int argc, char *argv[])
             << "\n============================================\n"
             << "TESTE FINALIZADO\n"
             << "============================================\n"
-            << "Arquivo: critical_results_120s.csv\n"
+            << "Arquivo: adjacent_hybrid_20s_results.csv\n"
             << "Tempo total: "
             << std::fixed
             << std::setprecision(2)
             << totalTime
             << " s\n"
+            << "Tempo total: "
+            << totalTime / 3600.0
+            << " h\n"
             << "============================================\n";
 
         return 0;
@@ -280,6 +448,13 @@ int main(int argc, char *argv[])
             << "Erro fatal: "
             << error.what()
             << '\n';
+
+        return 1;
+    }
+    catch (...)
+    {
+        std::cerr
+            << "Erro fatal desconhecido.\n";
 
         return 1;
     }

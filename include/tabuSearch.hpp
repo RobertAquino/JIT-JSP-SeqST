@@ -9,6 +9,7 @@
 #include "../include/tabuList.hpp"
 #include "../include/cycleDetector.hpp"
 #include "../include/checkpointStack.hpp"
+#include "../include/timingSolver.hpp"
 #include <vector>
 
 struct SolutionState
@@ -19,15 +20,10 @@ struct SolutionState
     double cost = 0;
 
     bool feasible = false;
-
-    std::vector<double> finalTimeJob;
-    std::vector<double> startTimeJob;
-    std::vector<int> criticalPredecessor;
-    std::vector<ValidationOp> certificate;
+    bool timingOptimal = false;
 };
 
 void changeMachines(const Solution &solution, Instance &instance);
 
-double TabuSearch(Instance &instance, Parameters &parameters, std::vector<int> &criticalPredecessor,
-                  std::vector<double> &finalTimeJob, int machineCount, std::vector<ValidationOp> &certificate,
-                  std::vector<double> &startTimeJob, double &bestMakespan);
+double TabuSearch(Instance &instance, Parameters &parameters, int machineCount, std::vector<ValidationOp> &certificate,
+                  std::vector<double> &startTimeJob, double &bestMakespan, std::vector<double> &finalTimeJob);

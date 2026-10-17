@@ -1,0 +1,187 @@
+./bin/tabu_scheduler 
+============================================
+TESTE NOTURNO
+TABU - CRITICAL PATH + CPLEX TIMING
+============================================
+Instancias: 80
+
+5x10:   60 s
+10x10: 180 s
+20x10: 300 s
+50x10: 600 s
+
+Neighborhood: Critical Path (2)
+Tabu tenure: 5
+Cycle window: 6
+Cycle repeats: 3
+Checkpoint stack: 20
+============================================
+
+[1/80] I-10x10-equal-loose-0 | limit=180 s ... Evaluations: 234638
+cost=350.92 | makespan=442.00 | time=180.0019 s
+[2/80] I-10x10-equal-loose-1 | limit=180.0000 s ... Evaluations: 255477
+cost=261.08 | makespan=413.00 | time=180.0012 s
+[3/80] I-10x10-equal-loose-2 | limit=180.0000 s ... Evaluations: 233689
+cost=342.73 | makespan=445.00 | time=180.0015 s
+[4/80] I-10x10-equal-loose-3 | limit=180.0000 s ... Evaluations: 253244
+cost=190.55 | makespan=482.00 | time=180.0014 s
+[5/80] I-10x10-equal-loose-4 | limit=180.0000 s ... Evaluations: 241674
+cost=649.05 | makespan=468.00 | time=180.0014 s
+[6/80] I-10x10-equal-tight-0 | limit=180.0000 s ... Evaluations: 253468
+cost=327.30 | makespan=386.00 | time=180.0017 s
+[7/80] I-10x10-equal-tight-1 | limit=180.0000 s ... Evaluations: 225754
+cost=533.82 | makespan=411.00 | time=180.0018 s
+[8/80] I-10x10-equal-tight-2 | limit=180.0000 s ... Evaluations: 248043
+cost=349.97 | makespan=383.00 | time=180.0014 s
+[9/80] I-10x10-equal-tight-3 | limit=180.0000 s ... Evaluations: 247285
+cost=189.89 | makespan=377.80 | time=180.0012 s
+[10/80] I-10x10-equal-tight-4 | limit=180.0000 s ... Evaluations: 262842
+cost=349.84 | makespan=492.00 | time=180.0016 s
+[11/80] I-10x10-tard-loose-0 | limit=180.0000 s ... Evaluations: 248783
+cost=139.77 | makespan=452.50 | time=180.0014 s
+[12/80] I-10x10-tard-loose-1 | limit=180.0000 s ... Evaluations: 223160
+cost=176.82 | makespan=394.50 | time=180.0016 s
+[13/80] I-10x10-tard-loose-2 | limit=180.0000 s ... Evaluations: 312474
+cost=163.42 | makespan=396.00 | time=180.0009 s
+[14/80] I-10x10-tard-loose-3 | limit=180.0000 s ... Evaluations: 233480
+cost=213.69 | makespan=424.00 | time=180.0012 s
+[15/80] I-10x10-tard-loose-4 | limit=180.0000 s ... Evaluations: 265654
+cost=203.48 | makespan=391.00 | time=180.0015 s
+[16/80] I-10x10-tard-tight-0 | limit=180.0000 s ... Evaluations: 245840
+cost=794.28 | makespan=553.00 | time=180.0019 s
+[17/80] I-10x10-tard-tight-1 | limit=180.0000 s ... Evaluations: 253902
+cost=306.94 | makespan=470.00 | time=180.0012 s
+[18/80] I-10x10-tard-tight-2 | limit=180.0000 s ... Evaluations: 224428
+cost=319.63 | makespan=330.00 | time=180.0016 s
+[19/80] I-10x10-tard-tight-3 | limit=180.0000 s ... Evaluations: 226707
+cost=651.49 | makespan=400.80 | time=180.0014 s
+[20/80] I-10x10-tard-tight-4 | limit=180.0000 s ... Evaluations: 231538
+cost=839.77 | makespan=477.00 | time=180.0014 s
+[21/80] I-20x10-equal-loose-0 | limit=300.0000 s ... Evaluations: 164021
+cost=1575.14 | makespan=640.00 | time=300.0037 s
+[22/80] I-20x10-equal-loose-1 | limit=300.0000 s ... Evaluations: 163970
+cost=3717.99 | makespan=836.00 | time=300.0030 s
+[23/80] I-20x10-equal-loose-2 | limit=300.0000 s ... Evaluations: 162452
+cost=2231.71 | makespan=647.00 | time=300.0041 s
+[24/80] I-20x10-equal-loose-3 | limit=300.0000 s ... Evaluations: 157169
+cost=3457.01 | makespan=722.00 | time=300.0042 s
+[25/80] I-20x10-equal-loose-4 | limit=300.0000 s ... Evaluations: 157122
+cost=1799.29 | makespan=557.00 | time=300.0029 s
+[26/80] I-20x10-equal-tight-0 | limit=300.0000 s ... Evaluations: 159788
+cost=2290.10 | makespan=590.00 | time=300.0039 s
+[27/80] I-20x10-equal-tight-1 | limit=300.0000 s ... Evaluations: 153678
+cost=3016.80 | makespan=684.00 | time=300.0039 s
+[28/80] I-20x10-equal-tight-2 | limit=300.0000 s ... Evaluations: 158366
+cost=3918.22 | makespan=694.00 | time=300.0031 s
+[29/80] I-20x10-equal-tight-3 | limit=300.0000 s ... Evaluations: 152469
+cost=3157.61 | makespan=700.00 | time=300.0032 s
+[30/80] I-20x10-equal-tight-4 | limit=300.0000 s ... Evaluations: 156117
+cost=4064.54 | makespan=900.00 | time=300.0032 s
+[31/80] I-20x10-tard-loose-0 | limit=300.0000 s ... Evaluations: 165493
+cost=1981.61 | makespan=727.00 | time=300.0032 s
+[32/80] I-20x10-tard-loose-1 | limit=300.0000 s ... Evaluations: 158073
+cost=2664.61 | makespan=775.00 | time=300.0028 s
+[33/80] I-20x10-tard-loose-2 | limit=300.0000 s ... Evaluations: 154708
+cost=3697.58 | makespan=717.00 | time=300.0032 s
+[34/80] I-20x10-tard-loose-3 | limit=300.0000 s ... Evaluations: 149239
+cost=2751.57 | makespan=799.00 | time=300.0041 s
+[35/80] I-20x10-tard-loose-4 | limit=300.0000 s ... Evaluations: 163770
+cost=2178.94 | makespan=702.00 | time=300.0026 s
+[36/80] I-20x10-tard-tight-0 | limit=300.0000 s ... Evaluations: 156290
+cost=3014.57 | makespan=827.00 | time=300.0043 s
+[37/80] I-20x10-tard-tight-1 | limit=300.0000 s ... Evaluations: 152365
+cost=2873.68 | makespan=716.00 | time=300.0039 s
+[38/80] I-20x10-tard-tight-2 | limit=300.0000 s ... Evaluations: 163011
+cost=2620.41 | makespan=717.00 | time=300.0029 s
+[39/80] I-20x10-tard-tight-3 | limit=300.0000 s ... Evaluations: 158261
+cost=2790.88 | makespan=661.00 | time=300.0032 s
+[40/80] I-20x10-tard-tight-4 | limit=300.0000 s ... Evaluations: 153615
+cost=2965.78 | makespan=656.00 | time=300.0035 s
+[41/80] I-50x10-equal-loose-0 | limit=600.0000 s ... Evaluations: 75763
+cost=27084.58 | makespan=1924.00 | time=600.0167 s
+[42/80] I-50x10-equal-loose-1 | limit=600.0000 s ... Evaluations: 79440
+cost=29875.20 | makespan=1973.00 | time=600.0145 s
+[43/80] I-50x10-equal-loose-2 | limit=600.0000 s ... Evaluations: 73159
+cost=30523.88 | makespan=1896.00 | time=600.0137 s
+[44/80] I-50x10-equal-loose-3 | limit=600.0000 s ... Evaluations: 76166
+cost=29858.66 | makespan=1863.00 | time=600.0106 s
+[45/80] I-50x10-equal-loose-4 | limit=600.0000 s ... Evaluations: 85149
+cost=31808.52 | makespan=2066.00 | time=600.0133 s
+[46/80] I-50x10-equal-tight-0 | limit=600.0000 s ... Evaluations: 80037
+cost=27098.92 | makespan=1566.00 | time=600.0126 s
+[47/80] I-50x10-equal-tight-1 | limit=600.0000 s ... Evaluations: 76843
+cost=33995.66 | makespan=1886.00 | time=600.0144 s
+[48/80] I-50x10-equal-tight-2 | limit=600.0000 s ... Evaluations: 81378
+cost=26969.00 | makespan=2007.00 | time=600.0167 s
+[49/80] I-50x10-equal-tight-3 | limit=600.0000 s ... Evaluations: 80618
+cost=31181.56 | makespan=1944.00 | time=600.0127 s
+[50/80] I-50x10-equal-tight-4 | limit=600.0000 s ... Evaluations: 80846
+cost=29791.89 | makespan=2030.00 | time=600.0149 s
+[51/80] I-50x10-tard-loose-0 | limit=600.0000 s ... Evaluations: 77079
+cost=37827.29 | makespan=2212.00 | time=600.0173 s
+[52/80] I-50x10-tard-loose-1 | limit=600.0000 s ... Evaluations: 75395
+cost=37877.24 | makespan=2164.00 | time=600.0141 s
+[53/80] I-50x10-tard-loose-2 | limit=600.0000 s ... Evaluations: 79701
+cost=35469.55 | makespan=1971.00 | time=600.0132 s
+[54/80] I-50x10-tard-loose-3 | limit=600.0000 s ... Evaluations: 76380
+cost=28500.16 | makespan=2043.00 | time=600.0095 s
+[55/80] I-50x10-tard-loose-4 | limit=600.0000 s ... Evaluations: 76966
+cost=28843.43 | makespan=1751.00 | time=600.0155 s
+[56/80] I-50x10-tard-tight-0 | limit=600.0000 s ... Evaluations: 75808
+cost=35133.85 | makespan=1983.00 | time=600.0132 s
+[57/80] I-50x10-tard-tight-1 | limit=600.0000 s ... Evaluations: 88925
+cost=35964.50 | makespan=2308.00 | time=600.0100 s
+[58/80] I-50x10-tard-tight-2 | limit=600.0000 s ... Evaluations: 77424
+cost=33050.84 | makespan=2292.00 | time=600.0167 s
+[59/80] I-50x10-tard-tight-3 | limit=600.0000 s ... Evaluations: 81184
+cost=36363.44 | makespan=2289.00 | time=600.0116 s
+[60/80] I-50x10-tard-tight-4 | limit=600.0000 s ... Evaluations: 77000
+cost=36146.11 | makespan=2240.00 | time=600.0112 s
+[61/80] I-5x10-equal-loose-0 | limit=60.0000 s ... Evaluations: 6531
+cost=90.68 | makespan=407.00 | time=1.8613 s
+[62/80] I-5x10-equal-loose-1 | limit=60.0000 s ... Evaluations: 3683
+cost=74.62 | makespan=393.50 | time=1.0312 s
+[63/80] I-5x10-equal-loose-2 | limit=60.0000 s ... Evaluations: 4521
+cost=51.21 | makespan=393.50 | time=1.2747 s
+[64/80] I-5x10-equal-loose-3 | limit=60.0000 s ... Evaluations: 3771
+cost=56.59 | makespan=368.00 | time=1.1445 s
+[65/80] I-5x10-equal-loose-4 | limit=60.0000 s ... Evaluations: 3645
+cost=81.27 | makespan=392.50 | time=1.1585 s
+[66/80] I-5x10-equal-tight-0 | limit=60.0000 s ... Evaluations: 177597
+cost=101.29 | makespan=353.20 | time=60.0008 s
+[67/80] I-5x10-equal-tight-1 | limit=60.0000 s ... Evaluations: 195990
+cost=65.09 | makespan=360.80 | time=60.0007 s
+[68/80] I-5x10-equal-tight-2 | limit=60.0000 s ... Evaluations: 8856
+cost=40.71 | makespan=342.80 | time=2.8397 s
+[69/80] I-5x10-equal-tight-3 | limit=60.0000 s ... Evaluations: 10336
+cost=64.80 | makespan=349.00 | time=3.2432 s
+[70/80] I-5x10-equal-tight-4 | limit=60.0000 s ... Evaluations: 12073
+cost=98.46 | makespan=340.80 | time=3.8756 s
+[71/80] I-5x10-tard-loose-0 | limit=60.0000 s ... Evaluations: 3707
+cost=45.95 | makespan=347.50 | time=1.0475 s
+[72/80] I-5x10-tard-loose-1 | limit=60.0000 s ... Evaluations: 11924
+cost=84.16 | makespan=371.00 | time=3.7611 s
+[73/80] I-5x10-tard-loose-2 | limit=60.0000 s ... Evaluations: 5672
+cost=61.55 | makespan=432.50 | time=1.5926 s
+[74/80] I-5x10-tard-loose-3 | limit=60.0000 s ... Evaluations: 227308
+cost=45.65 | makespan=369.00 | time=60.0005 s
+[75/80] I-5x10-tard-loose-4 | limit=60.0000 s ... Evaluations: 211630
+cost=55.38 | makespan=393.50 | time=60.0018 s
+[76/80] I-5x10-tard-tight-0 | limit=60.0000 s ... Evaluations: 198861
+cost=76.33 | makespan=383.90 | time=60.0006 s
+[77/80] I-5x10-tard-tight-1 | limit=60.0000 s ... Evaluations: 3520
+cost=42.11 | makespan=384.20 | time=1.0150 s
+[78/80] I-5x10-tard-tight-2 | limit=60.0000 s ... Evaluations: 17389
+cost=65.22 | makespan=345.60 | time=4.6556 s
+[79/80] I-5x10-tard-tight-3 | limit=60.0000 s ... Evaluations: 189784
+cost=55.45 | makespan=335.30 | time=60.0005 s
+[80/80] I-5x10-tard-tight-4 | limit=60.0000 s ... Evaluations: 198723
+cost=58.01 | makespan=362.60 | time=60.0008 s
+
+============================================
+TESTE FINALIZADO
+============================================
+Arquivo: critical_cplex_night_results.csv
+Tempo total: 22050.09 s
+Tempo total: 6.13 h
+============================================
